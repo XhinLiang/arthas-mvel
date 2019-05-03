@@ -108,7 +108,7 @@ public class AgentBootstrap {
 
     private static synchronized void main(String args, final Instrumentation inst) {
         try {
-            ps.println("Arthas server agent start...");
+            ps.println("Arthas server agent start, args: " + args);
             // 传递的args参数分两个部分:agentJar路径和agentArgs, 分别是Agent的JAR包路径和期望传递到服务端的参数
             args = decodeArg(args);
             int index = args.indexOf(';');
