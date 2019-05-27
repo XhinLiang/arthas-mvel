@@ -2,6 +2,9 @@ package com.taobao.arthas.core.command.klass100;
 
 import java.lang.instrument.Instrumentation;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
+
+import com.google.common.base.Joiner;
 import com.taobao.arthas.core.command.Constants;
 import com.taobao.arthas.core.command.express.Express;
 import com.taobao.arthas.core.command.express.ExpressException;
@@ -78,6 +81,7 @@ public class MvelCommand extends AnnotatedCommand {
             sb.append(cliToken.raw());
         }
         String evalString = sb.toString();
+        ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
         try {
             Instrumentation inst = process.session().getInstrumentation();
             ClassLoader classLoader;
@@ -94,23 +98,27 @@ public class MvelCommand extends AnnotatedCommand {
             }
 
 
-            ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
             Thread.currentThread().setContextClassLoader(classLoader);
             Express unpooledExpress = ExpressFactory.mvelExpress(classLoader);
             try {
                 Object value = unpooledExpress.get(evalString);
-                Thread.currentThread().setContextClassLoader(oldClassLoader);
                 String result = StringUtils.objectToString(expand >= 0 ? new ObjectView(value, expand).draw() : value);
                 process.write(result + "\n");
             } catch (ExpressException e) {
-                logger.warn("mvel: failed execute express: " + express, e);
+                String rootMessage = exceptionToString(e);
+                logger.warn("mvel: failed execute express: " + express, rootMessage);
                 process.write("Failed to get static, exception message: " + e.getMessage()
                         + ", please check $HOME/logs/arthas/arthas.log for more details. \n");
                 exitCode = -1;
             }
         } finally {
+            Thread.currentThread().setContextClassLoader(oldClassLoader);
             process.end(exitCode);
         }
+    }
+
+    public static String exceptionToString(Exception e) {
+        return Joiner.on("\n").join(ExceptionUtils.getRootCauseStackTrace(e));
     }
 
     private static ClassLoader findClassLoader(Instrumentation inst, String hashCode) {
