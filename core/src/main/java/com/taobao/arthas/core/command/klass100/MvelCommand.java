@@ -93,9 +93,13 @@ public class MvelCommand extends AnnotatedCommand {
                 return;
             }
 
+
+            ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
+            Thread.currentThread().setContextClassLoader(classLoader);
             Express unpooledExpress = ExpressFactory.mvelExpress(classLoader);
             try {
                 Object value = unpooledExpress.get(evalString);
+                Thread.currentThread().setContextClassLoader(oldClassLoader);
                 String result = StringUtils.objectToString(expand >= 0 ? new ObjectView(value, expand).draw() : value);
                 process.write(result + "\n");
             } catch (ExpressException e) {
