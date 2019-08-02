@@ -77,8 +77,7 @@ public class Decompiler {
 
         ClassFileSourceImpl classFileSource = new ClassFileSourceImpl(options);
 
-        boolean skipInnerClass = (files.size() > 1)
-                        && (((Boolean) options.getOption(OptionsImpl.SKIP_BATCH_INNER_CLASSES)).booleanValue());
+        boolean skipInnerClass = (files.size() > 1) && (((Boolean) options.getOption(OptionsImpl.SKIP_BATCH_INNER_CLASSES)).booleanValue());
 
         Collections.sort(files);
 
@@ -105,8 +104,7 @@ public class Decompiler {
         return result.toString();
     }
 
-    public static String doClass(DCCommonState dcCommonState, String path, boolean skipInnerClass,
-                    DumperFactory dumperFactory) {
+    public static String doClass(DCCommonState dcCommonState, String path, boolean skipInnerClass, DumperFactory dumperFactory) {
         // CHECKSTYLE:OFF
         StringBuilder result = new StringBuilder(8192);
         // CHECKSTYLE:ON
@@ -123,13 +121,13 @@ public class Decompiler {
             try {
                 c = dcCommonState.getClassFile(c.getClassType());
             } catch (CannotLoadClassException e) {
+                // pass
             }
             if (((Boolean) options.getOption(OptionsImpl.DECOMPILE_INNER_CLASSES)).booleanValue()) {
                 c.loadInnerClasses(dcCommonState);
             }
             if (((Boolean) options.getOption(OptionsImpl.RENAME_DUP_MEMBERS)).booleanValue()) {
-                MemberNameResolver.resolveNames(dcCommonState,
-                                newList(dcCommonState.getClassCache().getLoadedTypes()));
+                MemberNameResolver.resolveNames(dcCommonState, newList(dcCommonState.getClassCache().getLoadedTypes()));
             }
 
             c.analyseTop(dcCommonState);
@@ -181,10 +179,10 @@ public class Decompiler {
      *
      */
     public static class StringDumper extends StreamDumper {
+
         private StringWriter sw = new StringWriter();
 
-        public StringDumper(TypeUsageInformation typeUsageInformation, Options options,
-                        IllegalIdentifierDump illegalIdentifierDump) {
+        public StringDumper(TypeUsageInformation typeUsageInformation, Options options, IllegalIdentifierDump illegalIdentifierDump) {
             super(typeUsageInformation, options, illegalIdentifierDump);
         }
 
