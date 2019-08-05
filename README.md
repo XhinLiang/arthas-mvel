@@ -1,6 +1,6 @@
 ### Arthas-MVEL
 
-![arthas](site/src/site/sphinx/arthas.png)
+![arthas](static/arthas-mvel.png)
 
 [![Build Status](https://travis-ci.org/alibaba/arthas.svg?branch=master)](https://travis-ci.org/alibaba/arthas) [![codecov](https://codecov.io/gh/alibaba/arthas/branch/master/graph/badge.svg)](https://codecov.io/gh/alibaba/arthas) [![maven](https://img.shields.io/maven-central/v/com.taobao.arthas/arthas-packaging.svg)](https://search.maven.org/search?q=g:com.taobao.arthas) ![license](https://img.shields.io/github/license/alibaba/arthas.svg) [![Average time to resolve an issue](http://isitmaintained.com/badge/resolution/alibaba/arthas.svg)](http://isitmaintained.com/project/alibaba/arthas "Average time to resolve an issue") [![Percentage of issues still open](http://isitmaintained.com/badge/open/alibaba/arthas.svg)](http://isitmaintained.com/project/alibaba/arthas "Percentage of issues still open")
 
@@ -99,15 +99,8 @@ $ getBeanByName = def (name) { com.some.static.function.you.can.getBean(name) }
     ],
 ]
 
-// get a bean
-// bean will be loaded by the function "getBeanByName"
-$ userService
-@UserServiceImpl[
-    logger=@LoggerAdapter[
-    // ...
-
-
 // call function of bean
+// bean "userService" will be loaded by the function "getBeanByName"
 $ userService.getById(123L)
 @UserModel[
     serialVersionUID=@Long[-8752733010881684427],
