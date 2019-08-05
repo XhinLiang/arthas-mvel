@@ -58,6 +58,7 @@ $ import java.lang.System
     SYNTHETIC=@Integer[4096],
     cachedConstructor=null,
     // more
+
 // call static function without FQCN
 $ System.currentTimeMillis()
 @Long[1564991009477]
@@ -69,6 +70,26 @@ $ joiner = com.google.common.base.Joiner.on("_")
 ]
 $ joiner.join("abc", "efg", "123")
 @String[abc_efg_123]
+
+// loop
+$ count = 1
+@Integer[1]
+$ for (int i =0; i < 100; i++) { count = count + 1;}
+null
+$ count
+@Integer[101]
+
+// define a function
+$ incrByTime = def (raw, time) { for (int i =0; i < time; i++) { raw = raw + 1;}; raw; }
+@PrototypalFunctionInstance[
+    resolverFactory=@MapVariableResolverFactory[
+        variables=@HashMap[isEmpty=true;size=0],
+    ],
+]
+
+// call function
+$ incrByTime(1, 50)
+@Integer[51]
 
 // define a function to load bean
 $ getBeanByName = def (name) { com.some.static.function.you.can.getBean(name) }
