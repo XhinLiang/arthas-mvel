@@ -25,7 +25,7 @@ public class ArthasBanner {
     private static final String WIKI = "https://alibaba.github.io/arthas";
     private static final String TUTORIALS = "https://alibaba.github.io/arthas/arthas-tutorials";
 
-    private static String LOGO = "Welcome to Arthas";
+    private static String LOGO = "Welcome to Arthas-MVEL";
     private static String VERSION = "unknown";
     private static String THANKS = "";
 
