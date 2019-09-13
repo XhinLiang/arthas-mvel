@@ -31,7 +31,7 @@ public class ExpressFactory {
         return new OgnlExpress(new ClassLoaderClassResolver(classloader));
     }
 
-    public static Express mvelExpress(ClassLoader classloader) {
+    public static synchronized Express mvelExpress(ClassLoader classloader) {
         String classLoaderName = classloader.getClass().getName();
         MvelExpress express = MVEL_EXPRESS.get(classLoaderName);
         if (express == null) {

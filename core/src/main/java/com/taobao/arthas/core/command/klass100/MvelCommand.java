@@ -46,10 +46,10 @@ public class MvelCommand extends AnnotatedCommand {
 
     private int expand = 3;
 
-    private static Command instance = Command.create(MvelCommand.class);
+    private static final Command INSTANCE = Command.create(MvelCommand.class);
 
     public static Command getInstance() {
-        return instance;
+        return INSTANCE;
     }
 
     @Argument(argName = "express", index = 0)

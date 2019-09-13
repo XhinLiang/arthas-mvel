@@ -1,5 +1,15 @@
 package com.taobao.arthas.core.shell.impl;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.lang.instrument.Instrumentation;
+import java.util.Date;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
 import com.taobao.arthas.core.shell.Shell;
 import com.taobao.arthas.core.shell.ShellServer;
 import com.taobao.arthas.core.shell.cli.CliToken;
@@ -23,12 +33,6 @@ import com.taobao.arthas.core.util.Constants;
 import com.taobao.arthas.core.util.LogUtil;
 import com.taobao.middleware.logger.Logger;
 
-import java.lang.instrument.Instrumentation;
-import java.util.Date;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-
 /**
  * The shell session as seen from the shell server perspective.
  *
@@ -38,9 +42,10 @@ public class ShellImpl implements Shell {
 
     private static final Logger logger = LogUtil.getArthasLogger();
 
-    private JobControllerImpl jobController;
     final String id;
     final Future<Void> closedFuture;
+
+    private JobControllerImpl jobController;
     private InternalCommandManager commandManager;
     private Session session = new SessionImpl();
     private Term term;
@@ -125,7 +130,36 @@ public class ShellImpl implements Shell {
         if (welcome != null && welcome.length() > 0) {
             term.write(welcome + "\n");
         }
+        try {
+            initArthasRc();
+        } catch (Exception e) {
+            logger.warn("ops", "", e);
+        }
         return this;
+    }
+
+    private void initArthasRc() throws IOException {
+        String arthasrcFilePath = System.getProperty("user.home") + File.separator + ".arthas" + File.separator + "arthasrc";
+        File arthasrcFile = new File(arthasrcFilePath);
+        if (!arthasrcFile.exists()) {
+            logger.info("arthasrc not exists: " + arthasrcFilePath);
+            return;
+        }
+        BufferedReader br = new BufferedReader(new FileReader(arthasrcFile.getAbsolutePath()));
+        try {
+            logger.info("init arthasrc: " + arthasrcFilePath);
+            term.write("init arthasrc: " + arthasrcFilePath + "\n");
+            String line = br.readLine();
+            while (line != null) {
+                logger.info("init line: " + line);
+                term.write(line + "\n");
+                createJob(line).run(true);
+                line = br.readLine();
+            }
+            term.write("init arthasrc finished.\n");
+        } finally {
+            br.close();
+        }
     }
 
     public String statusLine(Job job, ExecStatus status) {
