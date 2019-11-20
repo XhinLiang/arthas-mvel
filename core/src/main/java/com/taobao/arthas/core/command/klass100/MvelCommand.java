@@ -132,6 +132,9 @@ public class MvelCommand extends AnnotatedCommand {
                 if (classLoaderName.equals("org.apache.catalina.loader.WebappClassLoader")) {
                     return classLoader;
                 }
+                if (classLoaderName.equals("org.apache.catalina.loader.ParallelWebappClassLoader")) {
+                    return classLoader;
+                }
                 if (classLoaderName.equals("org.springframework.boot.loader.LaunchedURLClassLoader")) {
                     return classLoader;
                 }
