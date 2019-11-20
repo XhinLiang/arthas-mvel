@@ -46,7 +46,7 @@
                     <plugin>
                         <artifactId>jdeb</artifactId>
                         <groupId>org.vafer</groupId>
-                        <version>1.7</version>
+                        <version>1.8</version>
                         <executions>
                             <execution>
                                 <phase>package</phase>
@@ -142,6 +142,8 @@
                             <group>Development/tools</group>
                             <packager>Alibaba</packager>
                             <prefix>/usr/share</prefix>
+                            <autoProvides>false</autoProvides>
+                            <autoRequires>false</autoRequires>
                             <defineStatements>
                                 <defineStatement>_unpackaged_files_terminate_build 0</defineStatement>
                             </defineStatements>
