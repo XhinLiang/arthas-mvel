@@ -1,5 +1,12 @@
 package com.taobao.arthas.core.util;
 
+import static com.taobao.text.ui.Element.label;
+
+import java.io.InputStream;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Map.Entry;
+
 import com.taobao.arthas.common.PidUtils;
 import com.taobao.arthas.core.shell.ShellServerOptions;
 import com.taobao.middleware.logger.Logger;
@@ -7,13 +14,6 @@ import com.taobao.text.Color;
 import com.taobao.text.Decoration;
 import com.taobao.text.ui.TableElement;
 import com.taobao.text.util.RenderUtil;
-
-import java.io.InputStream;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Map.Entry;
-
-import static com.taobao.text.ui.Element.label;
 
 /**
  * @author beiwei30 on 16/11/2016.
@@ -100,7 +100,7 @@ public class ArthasBanner {
     }
 
     public static String welcome(Map<String, String> infos) {
-        logger.info("arthas version: " + version());
+        logger.info("arthas-mvel version: " + version());
         TableElement table = new TableElement().rightCellPadding(1)
                         .row("wiki", wiki())
                         .row("tutorials", tutorials())
