@@ -1,7 +1,5 @@
 package com.taobao.arthas.core.util;
 
-import static com.taobao.text.ui.Element.label;
-
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.Map;
@@ -10,8 +8,6 @@ import java.util.Map.Entry;
 import com.taobao.arthas.common.PidUtils;
 import com.taobao.arthas.core.shell.ShellServerOptions;
 import com.taobao.middleware.logger.Logger;
-import com.taobao.text.Color;
-import com.taobao.text.Decoration;
 import com.taobao.text.ui.TableElement;
 import com.taobao.text.util.RenderUtil;
 
@@ -45,27 +41,7 @@ public class ArthasBanner {
                 }
             }
 
-            StringBuilder sb = new StringBuilder();
-            String[] LOGOS = new String[6];
-            int i = 0, j = 0;
-            for (String line : logoText.split("\n")) {
-                sb.append(line);
-                sb.append("\n");
-                if (i++ == 4) {
-                    LOGOS[j++] = sb.toString();
-                    i = 0;
-                    sb.setLength(0);
-                }
-            }
-
-            TableElement logoTable = new TableElement();
-            logoTable.row(label(LOGOS[0]).style(Decoration.bold.fg(Color.red)),
-                    label(LOGOS[1]).style(Decoration.bold.fg(Color.yellow)),
-                    label(LOGOS[2]).style(Decoration.bold.fg(Color.cyan)),
-                    label(LOGOS[3]).style(Decoration.bold.fg(Color.magenta)),
-                    label(LOGOS[4]).style(Decoration.bold.fg(Color.green)),
-                    label(LOGOS[5]).style(Decoration.bold.fg(Color.blue)));
-            LOGO = RenderUtil.render(logoTable);
+            LOGO = logoText;
         } catch (Throwable e) {
             e.printStackTrace();
         }
