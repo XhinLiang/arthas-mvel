@@ -4,8 +4,6 @@
 
 ![arthas](site/src/site/sphinx/arthas.png)
 
-**Arthas 正在参加2019年度最受欢迎开源中国软件评选，急需大家宝贵的一票支持！！[查看](https://www.oschina.net/p/arthas)**
-
 [![Build Status](https://travis-ci.org/alibaba/arthas.svg?branch=master)](https://travis-ci.org/alibaba/arthas)
 [![codecov](https://codecov.io/gh/alibaba/arthas/branch/master/graph/badge.svg)](https://codecov.io/gh/alibaba/arthas)
 [![maven](https://img.shields.io/maven-central/v/com.taobao.arthas/arthas-packaging.svg)](https://search.maven.org/search?q=g:com.taobao.arthas)
@@ -477,6 +475,16 @@ OK
 ![qunar](static/qunar.png)
 ![ctrip](static/ctrip.png)
 ![途牛](static/tuniu.png)
+![多点](static/dmall.jpg)
+![转转](static/zhuanzhuan.jpg)
+![金蝶](static/kingdee.jpg)
+![华清飞扬](static/sincetimes.jpg)
+![神奇视角](static/fasterar.jpg)
+![南京昂克软件](static/angke.jpg)
+![网盛生意宝](static/netsun.jpg)
+![北京登云美业网络](static/idengyun.jpg)
+![Holder](static/holder.png)
+
 
 ### 洐生项目
 

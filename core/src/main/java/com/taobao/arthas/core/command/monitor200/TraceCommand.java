@@ -10,6 +10,7 @@ import com.taobao.arthas.core.util.matcher.RegexMatcher;
 import com.taobao.arthas.core.util.matcher.TrueMatcher;
 import com.taobao.arthas.core.util.matcher.WildcardMatcher;
 import com.taobao.middleware.cli.annotations.Argument;
+import com.taobao.middleware.cli.annotations.DefaultValue;
 import com.taobao.middleware.cli.annotations.Description;
 import com.taobao.middleware.cli.annotations.Name;
 import com.taobao.middleware.cli.annotations.Option;
@@ -35,6 +36,7 @@ import java.util.List;
         "  trace -E org\\\\.apache\\\\.commons\\\\.lang\\\\.StringUtils isBlank\n" +
         "  trace -E com.test.ClassA|org.test.ClassB method1|method2|method3\n" +
         "  trace demo.MathGame run -n 5\n" +
+        "  trace demo.MathGame run --skipJDKMethod false\n" +
         Constants.WIKI + Constants.WIKI_HOME + "trace")
 //@formatter:on
 public class TraceCommand extends EnhancerCommand {
@@ -83,8 +85,9 @@ public class TraceCommand extends EnhancerCommand {
         this.pathPatterns = pathPatterns;
     }
 
-    @Option(shortName = "j", longName = "jdkMethodSkip")
-    @Description("skip jdk method trace")
+    @Option(longName = "skipJDKMethod")
+    @DefaultValue("true")
+    @Description("skip jdk method trace, default value true.")
     public void setSkipJDKTrace(boolean skipJDKTrace) {
         this.skipJDKTrace = skipJDKTrace;
     }
