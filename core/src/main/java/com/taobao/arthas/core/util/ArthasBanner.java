@@ -18,7 +18,7 @@ public class ArthasBanner {
     private static final String LOGO_LOCATION = "/com/taobao/arthas/core/res/logo.txt";
     private static final String CREDIT_LOCATION = "/com/taobao/arthas/core/res/thanks.txt";
     private static final String VERSION_LOCATION = "/com/taobao/arthas/core/res/version";
-    private static final String WIKI = "https://alibaba.github.io/arthas";
+    private static final String GITHUB = "https://github.com/xhinliang/arthas-mvel";
     private static final String TUTORIALS = "https://alibaba.github.io/arthas/arthas-tutorials";
 
     private static String LOGO = "Welcome to Arthas-MVEL";
@@ -47,8 +47,8 @@ public class ArthasBanner {
         }
     }
 
-    public static String wiki() {
-        return WIKI;
+    public static String github() {
+        return GITHUB;
     }
 
     public static String tutorials() {
@@ -78,7 +78,7 @@ public class ArthasBanner {
     public static String welcome(Map<String, String> infos) {
         logger.info("arthas-mvel version: " + version());
         TableElement table = new TableElement().rightCellPadding(1)
-                        .row("wiki", wiki())
+                        .row("github", github())
                         .row("tutorials", tutorials())
                         .row("version", version())
                         .row("pid", PidUtils.currentPid())
