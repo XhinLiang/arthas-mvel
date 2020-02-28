@@ -137,6 +137,11 @@
         </dependency>
 
         <dependency>
+            <groupId>com.alibaba.arthas</groupId>
+            <artifactId>arthas-repackage-logger</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <version>1.2.17</version>
