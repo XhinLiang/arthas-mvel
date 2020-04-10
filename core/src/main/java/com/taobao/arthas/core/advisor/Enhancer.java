@@ -1,15 +1,15 @@
 package com.taobao.arthas.core.advisor;
 
+import com.alibaba.arthas.deps.org.slf4j.Logger;
+import com.alibaba.arthas.deps.org.slf4j.LoggerFactory;
 import com.taobao.arthas.core.GlobalOptions;
 import com.taobao.arthas.core.util.Constants;
 import com.taobao.arthas.core.util.FileUtils;
-import com.taobao.arthas.core.util.LogUtil;
 import com.taobao.arthas.core.util.matcher.Matcher;
 import com.taobao.arthas.core.util.SearchUtils;
 import com.taobao.arthas.core.util.affect.EnhancerAffect;
 
 import com.taobao.arthas.core.util.reflect.FieldUtils;
-import com.taobao.middleware.logger.Logger;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 
@@ -35,7 +35,7 @@ import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
  */
 public class Enhancer implements ClassFileTransformer {
 
-    private static final Logger logger = LogUtil.getArthasLogger();
+    private static final Logger logger = LoggerFactory.getLogger(Enhancer.class);
 
     private final int adviceId;
     private final boolean isTracing;
@@ -253,9 +253,8 @@ public class Enhancer implements ClassFileTransformer {
      * 是否过滤目前暂不支持的类
      */
     private static boolean isUnsupportedClass(Class<?> clazz) {
-
         return clazz.isArray()
-                || clazz.isInterface()
+                || (clazz.isInterface() && !GlobalOptions.isSupportDefaultMethod)
                 || clazz.isEnum()
                 || clazz.equals(Class.class) || clazz.equals(Integer.class) || clazz.equals(Method.class);
     }

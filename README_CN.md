@@ -485,12 +485,25 @@ OK
 ![北京登云美业网络](static/idengyun.jpg)
 ![Holder](static/holder.png)
 ![立林科技](static/leelen.png)
-
+![爱成长](static/aichengzhang.png)
+![嘉云数据](static/clubfactory.png)
+![百草味](static/bcw.png)
+![青岛优米](static/youmi.png)
+![紫光软件](static/unis.png)
+![拓保软件](static/tobosoft.png)
+![海信集团](static/hisense.png)
+![小红唇](static/xiaohongchun.png)
+![上海恺英](static/kaiying.png)
+![上海慧力](static/xiaohuasheng.png)
+![上海喔噻](static/shouqingba.png)
+![vipkid](static/vipkid.png)
+![宇中科技](static/yuzhong.png)
 
 ### 洐生项目
 
 * [Bistoury: 一个集成了Arthas的项目](https://github.com/qunarcorp/bistoury)
 * [一个使用MVEL脚本的fork](https://github.com/XhinLiang/arthas)
+
 
 ### Credit
 
@@ -508,7 +521,7 @@ OK
 * [cli](https://github.com/eclipse-vertx/vert.x/tree/master/src/main/java/io/vertx/core/cli): Arthas的命令行界面基于vert.x提供的cli库进行开发，感谢vert.x在这方面做的优秀工作。
 * [compiler](https://github.com/skalogs/SkaETL/tree/master/compiler) Arthas里的内存编绎器代码来源
 * [Apache Commons Net](https://commons.apache.org/proper/commons-net/) Arthas里的Telnet Client代码来源
-* [async-profiler](https://github.com/jvm-profiling-tools/async-profiler) Arthas's profielr 命令.
+* [async-profiler](https://github.com/jvm-profiling-tools/async-profiler) Arthas's profiler 命令.
 
 ### 仓库镜像
 
