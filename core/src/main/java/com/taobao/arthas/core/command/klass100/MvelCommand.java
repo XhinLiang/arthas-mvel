@@ -31,11 +31,11 @@ import com.taobao.middleware.cli.annotations.Summary;
 @Name("mvel")
 @Summary("Execute mvel expression.")
 @Description(Constants.EXAMPLE //
-        + "  mvel 'java.lang.System.out.println(\"hello\")' \n" //
-        + "  mvel -x 2 'com.taobao.Singleton.getInstance()' \n" //
-        + "  mvel 'com.taobao.Demo.staticFiled' \n" //
-        + "  mvel 'def getBeanByName(name) { com.example.BeanFactory.getBean(name); }' \n" //
-        + "  mvel -x 2 'xxxService.getInstance() // xxxService loaded by BeanFactory.' \n" //
+        + "  java.lang.System.out.println(\"hello\") \n" //
+        + "  com.taobao.Singleton.getInstance() \n" //
+        + "  com.taobao.Demo.staticFiled \n" //
+        + "  def getBeanByName(name) { com.example.BeanFactory.getBean(name); } \n" //
+        + "  xxxService.getInstance() // xxxService loaded by BeanFactory. \n" //
         + "" + Constants.WIKI + Constants.WIKI_HOME + "mvel\n" //
         + "  http://mvel.documentnode.com/" //
 )
