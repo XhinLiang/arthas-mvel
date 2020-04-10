@@ -16,11 +16,9 @@ import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
 import com.taobao.arthas.common.AnsiLog;
 import com.taobao.arthas.common.IOUtils;
@@ -32,7 +30,7 @@ import com.taobao.arthas.common.IOUtils;
  */
 public class DownloadUtils {
     private static final String MAVEN_METADATA_URL = "${REPO}/com/taobao/arthas/arthas-packaging/maven-metadata.xml";
-    private static final String REMOTE_DOWNLOAD_URL = "https://statics.xhinliang.com/arthas.zip";
+    private static final String REMOTE_DOWNLOAD_URL = "https://github.com/XhinLiang/arthas-mvel/releases/download/latest/latest.zip";
 
     private static final int CONNECTION_TIMEOUT = 3000;
 
