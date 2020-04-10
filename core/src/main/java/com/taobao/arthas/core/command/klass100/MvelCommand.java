@@ -4,6 +4,8 @@ import java.lang.instrument.Instrumentation;
 
 import org.apache.commons.lang.exception.ExceptionUtils;
 
+import com.alibaba.arthas.deps.org.slf4j.Logger;
+import com.alibaba.arthas.deps.org.slf4j.LoggerFactory;
 import com.google.common.base.Joiner;
 import com.taobao.arthas.core.command.Constants;
 import com.taobao.arthas.core.command.express.Express;
@@ -13,7 +15,6 @@ import com.taobao.arthas.core.shell.cli.CliToken;
 import com.taobao.arthas.core.shell.command.AnnotatedCommand;
 import com.taobao.arthas.core.shell.command.Command;
 import com.taobao.arthas.core.shell.command.CommandProcess;
-import com.taobao.arthas.core.util.LogUtil;
 import com.taobao.arthas.core.util.StringUtils;
 import com.taobao.arthas.core.view.ObjectView;
 import com.taobao.middleware.cli.annotations.Argument;
@@ -21,7 +22,6 @@ import com.taobao.middleware.cli.annotations.Description;
 import com.taobao.middleware.cli.annotations.Name;
 import com.taobao.middleware.cli.annotations.Option;
 import com.taobao.middleware.cli.annotations.Summary;
-import com.taobao.middleware.logger.Logger;
 
 /**
  *
@@ -41,7 +41,7 @@ import com.taobao.middleware.logger.Logger;
 )
 public class MvelCommand extends AnnotatedCommand {
 
-    private static final Logger logger = LogUtil.getArthasLogger();
+    private static final Logger logger = LoggerFactory.getLogger(MvelCommand.class);
 
     private String express;
 

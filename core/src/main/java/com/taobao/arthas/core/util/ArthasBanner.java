@@ -1,22 +1,14 @@
 package com.taobao.arthas.core.util;
 
-import com.alibaba.arthas.deps.org.slf4j.Logger;
-import com.alibaba.arthas.deps.org.slf4j.LoggerFactory;
-import com.taobao.arthas.common.PidUtils;
-import com.taobao.arthas.core.shell.ShellServerOptions;
-import com.taobao.text.Color;
-import com.taobao.text.Decoration;
-import com.taobao.text.ui.TableElement;
-import com.taobao.text.util.RenderUtil;
-
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import com.alibaba.arthas.deps.org.slf4j.Logger;
+import com.alibaba.arthas.deps.org.slf4j.LoggerFactory;
 import com.taobao.arthas.common.PidUtils;
 import com.taobao.arthas.core.shell.ShellServerOptions;
-import com.taobao.middleware.logger.Logger;
 import com.taobao.text.ui.TableElement;
 import com.taobao.text.util.RenderUtil;
 

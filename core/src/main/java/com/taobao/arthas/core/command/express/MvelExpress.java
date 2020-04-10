@@ -1,14 +1,14 @@
 package com.taobao.arthas.core.command.express;
 
-import com.taobao.arthas.core.util.LogUtil;
-import com.taobao.middleware.logger.Logger;
+import com.alibaba.arthas.deps.org.slf4j.Logger;
+import com.alibaba.arthas.deps.org.slf4j.LoggerFactory;
 
 /**
  * @author xhinliang
  */
 public class MvelExpress implements Express {
 
-    private final Logger logger = LogUtil.getArthasLogger();
+    private static final Logger logger = LoggerFactory.getLogger(MvelExpress.class);
 
     private final MvelEvalKiller evalKiller;
 
@@ -21,7 +21,7 @@ public class MvelExpress implements Express {
         try {
             return evalKiller.eval(express);
         } catch (Exception e) {
-            logger.error(null, "Error during evaluating the expression:", e);
+            logger.error("Error during evaluating the expression:", e);
             throw new ExpressException(express, e);
         }
     }
