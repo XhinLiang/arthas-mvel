@@ -11,13 +11,13 @@
 Install `Arthas-MVEL` just like `arthas`.
 
 ```bash
-wget https://github.com/XhinLiang/arthas-mvel/releases/download/latest/boot.jar
-java -jar boot.jar
+wget https://statics.xhinliang.com/arthas-boot.jar
+java -jar arthas-boot.jar
 ```
 
 ## Usage
 
-Install `Arthas-MVEL` just like `arthas`.
+Use `Arthas-MVEL` just like `arthas`.
 
 ```java
 
