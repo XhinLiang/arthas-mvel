@@ -30,7 +30,7 @@ import com.taobao.arthas.common.IOUtils;
  */
 public class DownloadUtils {
     private static final String MAVEN_METADATA_URL = "${REPO}/com/taobao/arthas/arthas-packaging/maven-metadata.xml";
-    private static final String REMOTE_DOWNLOAD_URL = "https://github.com/XhinLiang/arthas-mvel/releases/download/latest/latest.zip";
+    private static final String REMOTE_DOWNLOAD_URL = "https://statics.xhinliang.com/arthas.zip";
 
     private static final int CONNECTION_TIMEOUT = 3000;
 
