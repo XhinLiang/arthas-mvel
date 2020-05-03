@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.mvel2.MVEL;
+import org.mvel2.optimizers.OptimizerFactory;
 
 /**
  * @author xhinliang <xhinliang@gmail.com>
@@ -13,10 +14,15 @@ import org.mvel2.MVEL;
  */
 public class MvelEvalKiller {
 
-    private MvelContext globalContext;
-
     // local context 现在没啥用
-    private HashMap<String, Object> localContext = new HashMap<String, Object>();
+    private final HashMap<String, Object> localContext = new HashMap<String, Object>();
+
+    private final MvelContext globalContext;
+
+    static {
+        // see https://github.com/mvel/mvel/issues/234
+        OptimizerFactory.setDefaultOptimizer("reflective");
+    }
 
     public MvelEvalKiller(ClassLoader classLoader) {
         this.globalContext = new MvelContext(this, classLoader);
