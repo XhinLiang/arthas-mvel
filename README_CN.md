@@ -13,7 +13,7 @@
 
 English version goes [here](README.md).
 
-`Arthas` 是Alibaba开源的Java诊断工具，深受开发者喜爱。
+`Arthas` 是Alibaba开源的Java诊断工具，深受开发者喜爱..。
 
 当你遇到以下类似问题而束手无策时，`Arthas`可以帮助你解决：
 
