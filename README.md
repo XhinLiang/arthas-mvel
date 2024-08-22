@@ -8,10 +8,11 @@
 
 ## Installation
 
-Install `Arthas-MVEL` just like `arthas`.
+Download `Arthas-MVEL` from [Release](https://github.com/XhinLiang/arthas-mvel/releases)
+
+Than launch it:
 
 ```bash
-wget https://statics.xhinliang.com/arthas-boot.jar
 java -jar arthas-boot.jar
 ```
 
