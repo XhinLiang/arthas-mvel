@@ -1,8 +1,8 @@
 package com.taobao.arthas.core.command.monitor200;
 
-import com.taobao.arthas.core.util.DateUtils;
+import com.taobao.arthas.core.command.model.TraceModel;
+import com.taobao.arthas.core.command.model.TraceTree;
 import com.taobao.arthas.core.util.ThreadUtil;
-import com.taobao.arthas.core.view.TreeView;
 
 /**
  * 用于在ThreadLocal中传递的实体
@@ -10,32 +10,20 @@ import com.taobao.arthas.core.view.TreeView;
  */
 public class TraceEntity {
 
-    protected TreeView view;
+    protected TraceTree tree;
     protected int deep;
 
-    public TraceEntity() {
-        this.view = createTreeView();
+    public TraceEntity(ClassLoader loader) {
+        this.tree = createTraceTree(loader);
         this.deep = 0;
     }
 
-    public TreeView getView() {
-        return view;
+    private TraceTree createTraceTree(ClassLoader loader) {
+        return new TraceTree(ThreadUtil.getThreadNode(loader, Thread.currentThread()));
     }
 
-    public void setView(TreeView view) {
-        this.view = view;
-    }
-
-    public int getDeep() {
-        return deep;
-    }
-
-    public void setDeep(int deep) {
-        this.deep = deep;
-    }
-
-    private TreeView createTreeView() {
-        String threadTitle = "ts=" + DateUtils.getCurrentDate()+ ";" + ThreadUtil.getThreadTitle(Thread.currentThread());
-        return new TreeView(true, threadTitle);
+    public TraceModel getModel() {
+        tree.trim();
+        return new TraceModel(tree.getRoot(), tree.getNodeCount());
     }
 }

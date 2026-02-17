@@ -3,6 +3,11 @@ package com.taobao.arthas.boot;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -10,6 +15,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.InputMismatchException;
 
@@ -27,9 +33,34 @@ import com.taobao.arthas.common.PidUtils;
 public class ProcessUtils {
     private static String FOUND_JAVA_HOME = null;
 
+    //status code from com.taobao.arthas.client.TelnetConsole
+    /**
+     * Process success
+     */
+    public static final int STATUS_OK = 0;
+    /**
+     * Generic error
+     */
+    public static final int STATUS_ERROR = 1;
+    /**
+     * Execute commands timeout
+     */
+    public static final int STATUS_EXEC_TIMEOUT = 100;
+    /**
+     * Execute commands error
+     */
+    public static final int STATUS_EXEC_ERROR = 101;
+
     @SuppressWarnings("resource")
-    public static long select(boolean v, long telnetPortPid) throws InputMismatchException {
+    public static long select(boolean v, long telnetPortPid, String select) throws InputMismatchException {
         Map<Long, String> processMap = listProcessByJps(v);
+        if (processMap.isEmpty()) {
+            processMap = listProcessByJcmd();
+            if (processMap.isEmpty()) {
+                AnsiLog.error("Cannot find java process. Try to run `jps` or `jcmd` commands to list the instrumented Java HotSpot VMs on the target system.");
+                return -1;
+            }
+        }
         // Put the port that is already listening at the first
         if (telnetPortPid > 0 && processMap.containsKey(telnetPortPid)) {
             String telnetPortProcess = processMap.get(telnetPortPid);
@@ -40,9 +71,19 @@ public class ProcessUtils {
             processMap = newProcessMap;
         }
 
-        if (processMap.isEmpty()) {
-            AnsiLog.info("Can not find java process. Try to pass <pid> in command line.");
-            return -1;
+        // select target process by the '--select' option when match only one process
+        if (select != null && !select.trim().isEmpty()) {
+            int matchedSelectCount = 0;
+            Long matchedPid = null;
+            for (Entry<Long, String> entry : processMap.entrySet()) {
+                if (entry.getValue().contains(select)) {
+                    matchedSelectCount++;
+                    matchedPid = entry.getKey();
+                }
+            }
+            if (matchedSelectCount == 1) {
+                return matchedPid;
+            }
         }
 
         AnsiLog.info("Found existing java process, please choose one and input the serial number of the process, eg : 1. Then hit ENTER.");
@@ -81,6 +122,51 @@ public class ProcessUtils {
         return -1;
     }
 
+    private static Map<Long, String> listProcessByJcmd() {
+        Map<Long, String> result = new LinkedHashMap<>();
+
+        String jcmd = "jcmd";
+        File jcmdFile = findJcmd();
+        if (jcmdFile != null) {
+            jcmd = jcmdFile.getAbsolutePath();
+        }
+
+        AnsiLog.debug("Try use jcmd to list java process, jcmd: " + jcmd);
+
+        String[] command = new String[] { jcmd, "-l" };
+
+        List<String> lines = ExecutingCommand.runNative(command);
+
+        AnsiLog.debug("jcmd result: " + lines);
+
+        long currentPid = Long.parseLong(PidUtils.currentPid());
+        for (String line : lines) {
+            String[] strings = line.trim().split("\\s+");
+            if (strings.length < 1) {
+                continue;
+            }
+            try {
+                long pid = Long.parseLong(strings[0]);
+                if (pid == currentPid) {
+                    continue;
+                }
+                if (strings.length >= 2 && isJcmdProcess(strings[1])) { // skip jcmd
+                    continue;
+                }
+
+                result.put(pid, line);
+            } catch (Throwable e) {
+                // https://github.com/alibaba/arthas/issues/970
+                // ignore
+            }
+        }
+        return result;
+    }
+
+    /**
+     * @deprecated {@link #listProcessByJcmd()}
+     */
+    @Deprecated
     private static Map<Long, String> listProcessByJps(boolean v) {
         Map<Long, String> result = new LinkedHashMap<Long, String>();
 
@@ -90,7 +176,7 @@ public class ProcessUtils {
             jps = jpsFile.getAbsolutePath();
         }
 
-        AnsiLog.debug("Try use jps to lis java process, jps: " + jps);
+        AnsiLog.debug("Try use jps to list java process, jps: " + jps);
 
         String[] command = null;
         if (v) {
@@ -181,7 +267,7 @@ public class ProcessUtils {
                 }
 
                 throw new IllegalArgumentException("Can not find tools.jar under java home: " + javaHome
-                                + ", please try to start arthas-boot with full path java. Such as /opt/jdk/bin/java -jar arthas-boot.jar");
+                        + ", please try to start arthas-boot with full path java. Such as /opt/jdk/bin/java -jar arthas-boot.jar");
             }
         } else {
             FOUND_JAVA_HOME = javaHome;
@@ -194,13 +280,13 @@ public class ProcessUtils {
         String javaHome = findJavaHome();
 
         // find java/java.exe
-        File javaPath = findJava();
+        File javaPath = findJava(javaHome);
         if (javaPath == null) {
             throw new IllegalArgumentException(
-                            "Can not find java/java.exe executable file under java home: " + javaHome);
+                    "Can not find java/java.exe executable file under java home: " + javaHome);
         }
 
-        File toolsJar = findToolsJar();
+        File toolsJar = findToolsJar(javaHome);
 
         if (JavaVersionUtils.isLessThanJava9()) {
             if (toolsJar == null || !toolsJar.exists()) {
@@ -227,6 +313,8 @@ public class ProcessUtils {
         // -agent "${arthas_lib_dir}/arthas-agent.jar"
 
         ProcessBuilder pb = new ProcessBuilder(command);
+        // https://github.com/alibaba/arthas/issues/2166
+        pb.environment().put("JAVA_TOOL_OPTIONS", "");
         try {
             final Process proc = pb.start();
             Thread redirectStdout = new Thread(new Runnable() {
@@ -267,11 +355,55 @@ public class ProcessUtils {
         } catch (Throwable e) {
             // ignore
         }
-
     }
 
-    private static File findJava() {
-        String javaHome = findJavaHome();
+    public static int startArthasClient(String arthasHomeDir, List<String> telnetArgs, OutputStream out) throws Throwable {
+        // start java telnet client
+        // find arthas-client.jar
+        URLClassLoader classLoader = new URLClassLoader(
+                new URL[]{new File(arthasHomeDir, "arthas-client.jar").toURI().toURL()});
+        Class<?> telnetConsoleClass = classLoader.loadClass("com.taobao.arthas.client.TelnetConsole");
+        Method processMethod = telnetConsoleClass.getMethod("process", String[].class);
+
+        //redirect System.out/System.err
+        PrintStream originSysOut = System.out;
+        PrintStream originSysErr = System.err;
+        PrintStream newOut = new PrintStream(out);
+        PrintStream newErr = new PrintStream(out);
+
+        // call TelnetConsole.process()
+        // fix https://github.com/alibaba/arthas/issues/833
+        ClassLoader tccl = Thread.currentThread().getContextClassLoader();
+        try {
+            System.setOut(newOut);
+            System.setErr(newErr);
+            Thread.currentThread().setContextClassLoader(classLoader);
+            return (Integer) processMethod.invoke(null, new Object[]{telnetArgs.toArray(new String[0])});
+        } catch (Throwable e) {
+            //java.lang.reflect.InvocationTargetException : java.net.ConnectException
+            e = e.getCause();
+            if (e instanceof IOException || e instanceof InterruptedException) {
+                // ignore connection error and interrupted error
+                return STATUS_ERROR;
+            } else {
+                // process error
+                AnsiLog.error("process error: {}", e.toString());
+                AnsiLog.error(e);
+                return STATUS_EXEC_ERROR;
+            }
+        } finally {
+            Thread.currentThread().setContextClassLoader(tccl);
+
+            //reset System.out/System.err
+            System.setOut(originSysOut);
+            System.setErr(originSysErr);
+            //flush output
+            newOut.flush();
+            newErr.flush();
+        }
+    }
+
+    private static File findJava(String javaHome) {
         String[] paths = { "bin/java", "bin/java.exe", "../bin/java", "../bin/java.exe" };
 
         List<File> javaList = new ArrayList<File>();
@@ -305,12 +437,11 @@ public class ProcessUtils {
         return javaList.get(0);
     }
 
-    private static File findToolsJar() {
+    private static File findToolsJar(String javaHome) {
         if (JavaVersionUtils.isGreaterThanJava8()) {
             return null;
         }
 
-        String javaHome = findJavaHome();
         File toolsJar = new File(javaHome, "lib/tools.jar");
         if (!toolsJar.exists()) {
             toolsJar = new File(javaHome, "../lib/tools.jar");
@@ -328,6 +459,66 @@ public class ProcessUtils {
         return toolsJar;
     }
 
+    private static File findJcmd() {
+        // Try to find jcmd under java.home and System env JAVA_HOME
+        String javaHome = System.getProperty("java.home");
+        String[] paths = { "bin/jcmd", "bin/jcmd.exe", "../bin/jcmd", "../bin/jcmd.exe" };
+
+        List<File> jcmdList = new ArrayList<>();
+        for (String path : paths) {
+            File jcmdFile = new File(javaHome, path);
+            if (jcmdFile.exists()) {
+                AnsiLog.debug("Found jcmd: " + jcmdFile.getAbsolutePath());
+                jcmdList.add(jcmdFile);
+            }
+        }
+
+        if (jcmdList.isEmpty()) {
+            AnsiLog.debug("Can not find jcmd under :" + javaHome);
+            String javaHomeEnv = System.getenv("JAVA_HOME");
+            AnsiLog.debug("Try to find jcmd under env JAVA_HOME :" + javaHomeEnv);
+            if (javaHomeEnv != null) {
+                for (String path : paths) {
+                    File jcmdFile = new File(javaHomeEnv, path);
+                    if (jcmdFile.exists()) {
+                        AnsiLog.debug("Found jcmd: " + jcmdFile.getAbsolutePath());
+                        jcmdList.add(jcmdFile);
+                    }
+                }
+            } else {
+                AnsiLog.debug("JAVA_HOME environment variable is not set.");
+            }
+        }
+
+        if (jcmdList.isEmpty()) {
+            AnsiLog.debug("Can not find jcmd under current java home: " + javaHome);
+            return null;
+        }
+
+        // find the shortest path, jre path longer than jdk path
+        if (jcmdList.size() > 1) {
+            jcmdList.sort((file1, file2) -> {
+                try {
+                    return file1.getCanonicalPath().length() - file2.getCanonicalPath().length();
+                } catch (IOException e) {
+                    // ignore
+                    // fallback to absolute path length comparison
+                    return file1.getAbsolutePath().length() - file2.getAbsolutePath().length();
+                }
+            });
+        }
+        return jcmdList.get(0);
+    }
+
+    private static boolean isJcmdProcess(String mainClassName) {
+        // Java 8 or Java 9+
+        return "sun.tools.jcmd.JCmd".equals(mainClassName) || "jdk.jcmd/sun.tools.jcmd.JCmd".equals(mainClassName);
+    }
+
+    /**
+     * @deprecated {@link #findJcmd()}
+     */
+    @Deprecated
     private static File findJps() {
         // Try to find jps under java.home and System env JAVA_HOME
         String javaHome = System.getProperty("java.home");
@@ -377,6 +568,10 @@ public class ProcessUtils {
         return jpsList.get(0);
     }
 
+    /**
+     * @deprecated {@link #isJcmdProcess(String)}
+     */
+    @Deprecated
     private static boolean isJpsProcess(String mainClassName) {
         return "sun.tools.jps.Jps".equals(mainClassName) || "jdk.jcmd/sun.tools.jps.Jps".equals(mainClassName);
     }

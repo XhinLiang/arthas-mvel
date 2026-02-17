@@ -1,6 +1,7 @@
 package com.taobao.arthas.core.util;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.Iterator;
 import java.util.Properties;
@@ -48,7 +49,7 @@ public class LogUtilTest {
         properties1.put("arthas.home", testResourcesDir);
         arthasEnvironment.addLast(new PropertiesPropertySource("test1", properties1));
 
-        LoggerContext loggerContext = LogUtil.initLooger(arthasEnvironment);
+        LoggerContext loggerContext = LogUtil.initLogger(arthasEnvironment);
 
         Logger logger = loggerContext.getLogger("root");
         Level level = logger.getLevel();
@@ -63,7 +64,7 @@ public class LogUtilTest {
         properties1.put(LogUtil.LOGGING_CONFIG_PROPERTY, testResourcesDir + "/logback-test.xml");
         arthasEnvironment.addLast(new PropertiesPropertySource("test1", properties1));
 
-        LoggerContext loggerContext = LogUtil.initLooger(arthasEnvironment);
+        LoggerContext loggerContext = LogUtil.initLogger(arthasEnvironment);
 
         Logger logger = loggerContext.getLogger("root");
         Level level = logger.getLevel();
@@ -72,15 +73,14 @@ public class LogUtilTest {
     }
 
     @Test
-    public void test_DefaultLogFile() throws URISyntaxException {
+    public void test_DefaultLogFile() throws URISyntaxException, IOException {
         Properties properties1 = new Properties();
         properties1.put("arthas.home", testResourcesDir);
-
-        String logFile = new File(System.getProperty("user.home"), "logs/arthas/arthas.log").getAbsolutePath();
+        String logFile = new File(System.getProperty("user.home"), "logs/arthas/arthas.log").getCanonicalPath();
 
         arthasEnvironment.addLast(new PropertiesPropertySource("test1", properties1));
 
-        LoggerContext loggerContext = LogUtil.initLooger(arthasEnvironment);
+        LoggerContext loggerContext = LogUtil.initLogger(arthasEnvironment);
 
         Logger logger = loggerContext.getLogger("root");
         Level level = logger.getLevel();
@@ -95,7 +95,7 @@ public class LogUtilTest {
             if (appender instanceof RollingFileAppender) {
                 RollingFileAppender fileAppender = (RollingFileAppender) appender;
                 String file = fileAppender.getFile();
-                Assertions.assertThat(file).isEqualTo(logFile);
+                Assertions.assertThat(new File(file).getCanonicalPath()).isEqualTo(logFile);
                 foundFileAppender = true;
             }
         }
@@ -103,16 +103,16 @@ public class LogUtilTest {
     }
 
     @Test
-    public void test_ARTHAS_LOG_FILE() throws URISyntaxException {
+    public void test_ARTHAS_LOG_FILE() throws URISyntaxException, IOException {
         Properties properties1 = new Properties();
         properties1.put("arthas.home", testResourcesDir);
 
-        String logFile = new File(tempFolder.getRoot().getAbsoluteFile(), "test.log").getAbsolutePath();
+        String logFile = new File(tempFolder.getRoot().getAbsoluteFile(), "test.log").getCanonicalPath();
 
         properties1.put(LogUtil.FILE_NAME_PROPERTY, logFile);
         arthasEnvironment.addLast(new PropertiesPropertySource("test1", properties1));
 
-        LoggerContext loggerContext = LogUtil.initLooger(arthasEnvironment);
+        LoggerContext loggerContext = LogUtil.initLogger(arthasEnvironment);
 
         Logger logger = loggerContext.getLogger("root");
         Level level = logger.getLevel();
@@ -127,7 +127,7 @@ public class LogUtilTest {
             if (appender instanceof RollingFileAppender) {
                 RollingFileAppender fileAppender = (RollingFileAppender) appender;
                 String file = fileAppender.getFile();
-                Assertions.assertThat(file).isEqualTo(logFile);
+                Assertions.assertThat(new File(file).getCanonicalPath()).isEqualTo(logFile);
                 foundFileAppender = true;
             }
         }
@@ -135,16 +135,16 @@ public class LogUtilTest {
     }
 
     @Test
-    public void test_ARTHAS_LOG_PATH() throws URISyntaxException {
+    public void test_ARTHAS_LOG_PATH() throws URISyntaxException, IOException {
         Properties properties1 = new Properties();
         properties1.put("arthas.home", testResourcesDir);
 
-        String logFile = new File(tempFolder.getRoot().getAbsoluteFile(), "arthas.log").getAbsolutePath();
+        String logFile = new File(tempFolder.getRoot().getAbsoluteFile(), "arthas.log").getCanonicalPath();
 
         properties1.put(LogUtil.FILE_PATH_PROPERTY, tempFolder.getRoot().getAbsolutePath());
         arthasEnvironment.addLast(new PropertiesPropertySource("test1", properties1));
 
-        LoggerContext loggerContext = LogUtil.initLooger(arthasEnvironment);
+        LoggerContext loggerContext = LogUtil.initLogger(arthasEnvironment);
 
         Logger logger = loggerContext.getLogger("root");
         Level level = logger.getLevel();
@@ -159,7 +159,7 @@ public class LogUtilTest {
             if (appender instanceof RollingFileAppender) {
                 RollingFileAppender fileAppender = (RollingFileAppender) appender;
                 String file = fileAppender.getFile();
-                Assertions.assertThat(file).isEqualTo(logFile);
+                Assertions.assertThat(new File(file).getCanonicalPath()).isEqualTo(logFile);
                 foundFileAppender = true;
             }
         }

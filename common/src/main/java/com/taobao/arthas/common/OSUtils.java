@@ -1,5 +1,6 @@
 package com.taobao.arthas.common;
 
+import java.io.File;
 import java.util.Locale;
 
 /**
@@ -59,8 +60,20 @@ public class OSUtils {
 		return arch;
 	}
 
-	public static boolean isArm() {
+	public static boolean isArm32() {
 		return "arm_32".equals(arch);
+	}
+
+	public static boolean isArm64() {
+		return "aarch_64".equals(arch);
+	}
+
+	public static boolean isX86() {
+    	return "x86_32".equals(arch);
+	}
+
+	public static boolean isX86_64() {
+		return "x86_64".equals(arch);
 	}
 
 	private static String normalizeArch(String value) {
@@ -119,8 +132,18 @@ public class OSUtils {
 		if ("s390x".equals(value)) {
 			return "s390_64";
 		}
+		return value;
+	}
 
-		return UNKNOWN;
+	public static boolean isMuslLibc() {
+		File ld_musl_x86_64_file = new File("/lib/ld-musl-x86_64.so.1");
+		File ld_musl_aarch64_file = new File("/lib/ld-musl-aarch64.so.1");
+
+		if(ld_musl_x86_64_file.exists() || ld_musl_aarch64_file.exists()){
+			return true;
+		}
+
+		return false;
 	}
 
 	private static String normalize(String value) {

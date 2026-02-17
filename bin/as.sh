@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# WIKI: https://alibaba.github.io/arthas
+# WIKI: https://arthas.aliyun.com/doc
 # This script only supports bash, do not support posix sh.
 # If you have the problem like Syntax error: "(" unexpected (expecting "fi"),
 # Try to run "bash -version" to check the version.
@@ -8,10 +8,10 @@
 
 # program : Arthas
 #  author : Core Engine @ Taobao.com
-#    date : 2020-04-11
+#    date : 2026-01-10
 
 # current arthas script version
-ARTHAS_SCRIPT_VERSION=3.2.0
+ARTHAS_SCRIPT_VERSION=4.1.5
 
 # SYNOPSIS
 #   rreadlink <fileOrDirPath>
@@ -83,27 +83,34 @@ DIR=$(dirname -- "$(rreadlink "${BASH_SOURCE[0]}")")
 ARTHAS_HOME=
 
 # define arthas's lib
-ARTHAS_LIB_DIR=${HOME}/.arthas/lib
+if [ -z "${ARTHAS_LIB_DIR}" ]; then
+    ARTHAS_LIB_DIR=${HOME}/.arthas/lib
+else
+    echo "[INFO] ARTHAS_LIB_DIR: ${ARTHAS_LIB_DIR}"
+fi
 
 # target process id to attach
 TARGET_PID=
 
-# target process id to attach
-TARGET_IP="127.0.0.1"
+# target process id to attach, default 127.0.0.1
+TARGET_IP=
+DEFAULT_TARGET_IP="127.0.0.1"
 
-# telnet port
-TELNET_PORT="3658"
+# telnet port, default 3658
+TELNET_PORT=
+DEFAULT_TELNET_PORT="3658"
 
-# http port
-HTTP_PORT="8563"
+# http port, default 8563
+HTTP_PORT=
+DEFAULT_HTTP_PORT="8563"
 
 # telnet session timeout seconds, default 1800
-SESSION_TIMEOUT=1800
+SESSION_TIMEOUT=
 
 # use specify version
 USE_VERSION=
 
-# maven repo to download arthas
+# remote repo to download arthas
 REPO_MIRROR=
 
 # use http to download arthas
@@ -119,6 +126,9 @@ DEBUG_ATTACH=false
 HEIGHT=
 # arthas-client terminal width
 WIDTH=
+
+# select target process by classname or JARfilename
+SELECT=
 
 # Verbose, print debug info.
 VERBOSE=false
@@ -136,6 +146,18 @@ AGENT_ID=
 # stat report url
 STAT_URL=
 
+# app name
+APP_NAME=
+
+# username
+USERNAME=
+
+# password
+PASSWORD=
+
+# disabledCommands
+DISABLED_COMMANDS=
+
 ############ Command Arguments ############
 
 # if arguments contains -c/--command or -f/--batch-file,  BATCH_MODE will be true
@@ -144,16 +166,9 @@ BATCH_MODE=false
 # define arthas's temp dir
 TMP_DIR=/tmp
 
-# last update arthas version
-ARTHAS_VERSION=
-
-# maven-metadata.xml url
-# https://repo1.maven.org/maven2/com/taobao/arthas/arthas-packaging/maven-metadata.xml
-MAVEN_METADATA_URL="PLACEHOLDER_REPO/com/taobao/arthas/arthas-packaging/maven-metadata.xml"
 # arthas remote url
-# https://repo1.maven.org/maven2/com/taobao/arthas/arthas-packaging/3.x.x/arthas-packaging-3.x.x-bin.zip
-REMOTE_DOWNLOAD_URL="PLACEHOLDER_REPO/com/taobao/arthas/arthas-packaging/PLACEHOLDER_VERSION/arthas-packaging-PLACEHOLDER_VERSION-bin.zip"
-
+# https://arthas.aliyun.com/download/3.1.7?mirror=aliyun
+REMOTE_DOWNLOAD_URL="https://arthas.aliyun.com/download/PLACEHOLDER_VERSION?mirror=PLACEHOLDER_REPO"
 # update timeout(sec)
 SO_TIMEOUT=5
 
@@ -171,7 +186,7 @@ case "$(uname -s)" in
     *)          OS_TYPE="UNKNOWN"
 esac
 
-# check curl/grep/awk/telent/unzip command
+# check curl/grep/awk/telnet/unzip command
 if ! [ -x "$(command -v curl)" ]; then
   echo 'Error: curl is not installed. Try to use java -jar arthas-boot.jar' >&2
   exit 1
@@ -224,6 +239,7 @@ check_permission()
 # reset some options for env
 reset_for_env()
 {
+    unset JAVA_TOOL_OPTIONS
 
     # init ARTHAS' lib
     mkdir -p "${ARTHAS_LIB_DIR}" \
@@ -244,7 +260,7 @@ reset_for_env()
         JAVA_HOME=$(echo "$JAVA_COMMAND_PATH" | sed -n 's/\/bin\/java$//p')
     fi
 
-    # iterater throught candidates to find a proper JAVA_HOME at least contains tools.jar which is required by arthas.
+    # iterater through candidates to find a proper JAVA_HOME at least contains tools.jar which is required by arthas.
     if [ ! -d "${JAVA_HOME}" ]; then
         JAVA_HOME_CANDIDATES=($(ps aux | grep java | grep -v 'grep java' | awk '{print $11}' | sed -n 's/\/bin\/java$//p'))
         for JAVA_HOME_TEMP in ${JAVA_HOME_CANDIDATES[@]}; do
@@ -311,16 +327,7 @@ get_local_version()
 
 get_repo_url()
 {
-    local repoUrl=""
-    if [[ $REPO_MIRROR == "center" ]] ; then
-        repoUrl="https://repo1.maven.org/maven2"
-    fi
-    if [[ $REPO_MIRROR == "aliyun" ]] ; then
-        repoUrl="https://maven.aliyun.com/repository/public"
-    fi
-    if [ -z ${repoUrl} ] ; then
-        repoUrl="${REPO_MIRROR}"
-    fi
+    local repoUrl="${REPO_MIRROR}"
     if [ "$USE_HTTP" = true ] ; then
         repoUrl=${repoUrl/https/http}
     fi
@@ -330,16 +337,15 @@ get_repo_url()
 # get latest version from remote
 get_remote_version()
 {
-    local url="${MAVEN_METADATA_URL//PLACEHOLDER_REPO/$(get_repo_url)}"
-    curl -sLk "${url}" | sed -n -e 's/.*<release>\(.*\)<\/release>.*/\1/p' | head -n 1
+    curl -sLk "https://arthas.aliyun.com/api/latest_version"
 }
 
 # check version greater
 version_gt()
 {
-    [[ $1 == $2 ]] && return 1
-    local gtVersion=`echo -e "$1\n$2" | sort | tail -1`
-    [[ $gtVersion == $1 ]] && return 0 || return 1
+    local remote_version=$1
+    local arthas_local_version=$2
+    [[ "$remote_version" > "$arthas_local_version" ]] && return 0 || return 1
 }
 
 # update arthas if necessary
@@ -387,12 +393,32 @@ update_if_necessary()
     fi
 }
 
+# jps command may crash, so need to check it
+check_jps() {
+    "${JAVA_HOME}/bin/jps" > /dev/null 2>&1
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        echo "jps command failed with exit code ${exit_code}" >&2
+    fi
+    return $exit_code
+}
+
 call_jps()
 {
-    if [ "${VERBOSE}" = true ] ; then
-        "${JAVA_HOME}"/bin/jps -l -v
+    check_jps
+    local exit_code=$?
+    if [[ "$exit_code" -eq 0 ]]; then
+        # jps command is ok
+        local jps_command=("${JAVA_HOME}/bin/jps" "-l")
+        if [ "${VERBOSE}" = true ] ; then
+            jps_command=("${JAVA_HOME}/bin/jps" "-l" "-v")
+        fi
+        local jps_output=$("${jps_command[@]}")
+        echo "$jps_output"
     else
-        "${JAVA_HOME}"/bin/jps -l
+        # jps command failed, use ps and grep
+        ps_output=$(ps aux | grep java | grep -v grep | awk '{print $2" "$11}')
+        echo "$ps_output"
     fi
 }
 
@@ -404,8 +430,13 @@ Usage:
     $0 [-h] [--target-ip <value>] [--telnet-port <value>]
        [--http-port <value>] [--session-timeout <value>] [--arthas-home <value>]
        [--tunnel-server <value>] [--agent-id <value>] [--stat-url <value>]
+       [--app-name <value>]
+       [--username <value>] [--password <value>]
+       [--disabled-commands <value>]
        [--use-version <value>] [--repo-mirror <value>] [--versions] [--use-http]
        [--attach-only] [-c <value>] [-f <value>] [-v] [pid]
+
+NOTE: Arthas 4 supports JDK 8+. If you need to diagnose applications running on JDK 6/7, you can use Arthas 3.
 
 Options and Arguments:
  -h,--help                      Print usage
@@ -415,7 +446,7 @@ Options and Arguments:
     --session-timeout <value>   The session timeout seconds, default 1800 (30min)
     --arthas-home <value>       The arthas home
     --use-version <value>       Use special version arthas
-    --repo-mirror <value>       Use special maven repository mirror, value is
+    --repo-mirror <value>       Use special remote repository mirror, value is
                                 center/aliyun or http repo url.
     --versions                  List local and remote arthas versions
     --use-http                  Enforce use http to download, default use https
@@ -423,6 +454,11 @@ Options and Arguments:
     --debug-attach              Debug attach agent
     --tunnel-server             Remote tunnel server url
     --agent-id                  Special agent id
+    --app-name                  Special app name
+    --username                  Special username
+    --password                  Special password
+    --disabled-commands         Disable special commands
+    --select                    select target process by classname or JARfilename
  -c,--command <value>           Command to execute, multiple commands separated
                                 by ;
  -f,--batch-file <value>        The batch file to execute
@@ -433,19 +469,21 @@ Options and Arguments:
 
 EXAMPLES:
   ./as.sh <pid>
-  ./as.sh --target-ip 0.0.0.0
   ./as.sh --telnet-port 9999 --http-port -1
-  ./as.sh --tunnel-server 'ws://192.168.10.11:7777/ws'
+  ./as.sh --username admin --password <password>
+  ./as.sh --tunnel-server 'ws://192.168.10.11:7777/ws' --app-name demoapp
   ./as.sh --tunnel-server 'ws://192.168.10.11:7777/ws' --agent-id bvDOe8XbTM2pQWjF4cfw
   ./as.sh --stat-url 'http://192.168.10.11:8080/api/stat'
   ./as.sh -c 'sysprop; thread' <pid>
   ./as.sh -f batch.as <pid>
-  ./as.sh --use-version 3.2.0
+  ./as.sh --use-version 4.1.5
   ./as.sh --session-timeout 3600
   ./as.sh --attach-only
+  ./as.sh --disabled-commands stop,dump
+  ./as.sh --select math-game
   ./as.sh --repo-mirror aliyun --use-http
 WIKI:
-  https://alibaba.github.io/arthas
+  https://arthas.aliyun.com/doc
 
 Here is the list of possible java process(es) to attatch:
 "
@@ -468,6 +506,61 @@ find_listen_port_process()
     if [ -x "$(command -v lsof)" ]; then
         echo $(lsof -t -s TCP:LISTEN -i TCP:$1)
     fi
+}
+
+getTargetIPOrDefault()
+{
+    local targetIP=${DEFAULT_TARGET_IP}
+    if [ "${TARGET_IP}" ]; then
+        targetIP=${TARGET_IP}
+    fi
+    echo $targetIP
+}
+
+getTelnetPortOrDefault()
+{
+    local telnetPort=${DEFAULT_TELNET_PORT}
+    if [ "${TELNET_PORT}" ]; then
+        telnetPort=${TELNET_PORT}
+    fi
+    echo $telnetPort
+}
+
+getHttpPortOrDefault()
+{
+    local httpPort=${DEFAULT_HTTP_PORT}
+    if [ "${HTTP_PORT}" ]; then
+        httpPort=${HTTP_PORT}
+    fi
+    echo $httpPort
+}
+
+# Status from com.taobao.arthas.client.TelnetConsole
+# Execute commands timeout
+STATUS_EXEC_TIMEOUT=100
+# Execute commands error
+STATUS_EXEC_ERROR=101
+
+# find the process pid of target telnet port
+# maybe another user start an arthas server at the same port, but invisible for current user
+find_listen_port_process_by_client()
+{
+    local arthas_lib_dir="${ARTHAS_HOME}"
+    # http://www.inonit.com/cygwin/faq/
+    if [ "${OS_TYPE}" = "Cygwin" ]; then
+        arthas_lib_dir=`cygpath -wp "$arthas_lib_dir"`
+    fi
+
+    "${JAVA_HOME}/bin/java" ${ARTHAS_OPTS} ${JVM_OPTS} \
+             -jar "${arthas_lib_dir}/arthas-client.jar" \
+             $(getTargetIPOrDefault) \
+             $(getTelnetPortOrDefault) \
+             -c "session" \
+             --execution-timeout 2000 \
+             2>&1
+
+    # return java process exit status code !
+    return $?
 }
 
 parse_arguments()
@@ -548,6 +641,26 @@ parse_arguments()
         shift # past argument
         shift # past value
         ;;
+        --app-name)
+        APP_NAME="$2"
+        shift # past argument
+        shift # past value
+        ;;
+        --username)
+        USERNAME="$2"
+        shift # past argument
+        shift # past value
+        ;;
+        --password)
+        PASSWORD="$2"
+        shift # past argument
+        shift # past value
+        ;;
+        --disabled-commands)
+        DISABLED_COMMANDS="$2"
+        shift # past argument
+        shift # past value
+        ;;
         --use-http)
         USE_HTTP=true
         shift # past argument
@@ -583,6 +696,11 @@ parse_arguments()
         shift # past argument
         shift # past value
         ;;
+        --select)
+        SELECT="$2"
+        shift # past argument
+        shift # past value
+        ;;
         -v|--verbose)
         VERBOSE=true
         shift # past argument
@@ -613,16 +731,18 @@ parse_arguments()
     # check telnet port/http port
     local telnetPortPid
     local httpPortPid
-    if [[ $TELNET_PORT > 0 ]]; then
-        telnetPortPid=$(find_listen_port_process $TELNET_PORT)
+    local telnetPortOrDefault=$(getTelnetPortOrDefault)
+    local httpPortOrDefault=$(getHttpPortOrDefault)
+    if [[ $telnetPortOrDefault > 0 ]]; then
+        telnetPortPid=$(find_listen_port_process $telnetPortOrDefault)
         if [ $telnetPortPid ]; then
-            echo "[INFO] Process $telnetPortPid already using port $TELNET_PORT"
+            echo "[INFO] Process $telnetPortPid already using port $telnetPortOrDefault"
         fi
     fi
-    if [[ $HTTP_PORT > 0 ]]; then
-        httpPortPid=$(find_listen_port_process $HTTP_PORT)
+    if [[ $httpPortOrDefault > 0 ]]; then
+        httpPortPid=$(find_listen_port_process $httpPortOrDefault)
         if [ $telnetPortPid ]; then
-            echo "[INFO] Process $httpPortPid already using port $HTTP_PORT"
+            echo "[INFO] Process $httpPortPid already using port $httpPortOrDefault"
         fi
     fi
 
@@ -634,8 +754,17 @@ parse_arguments()
         fi
     fi
 
+    # try to find target pid by --select option
+    if [ -z ${TARGET_PID} ] && [ ${SELECT} ]; then
+        local IFS=$'\n'
+        CANDIDATES=($(call_jps | grep -v sun.tools.jps.Jps | grep "${SELECT}" | awk '{print $0}'))
+        if [ ${#CANDIDATES[@]} -eq 1 ]; then
+            TARGET_PID=`echo ${CANDIDATES[0]} | cut -d ' ' -f 1`
+        fi
+    fi
+
     # check pid
-    if [ -z ${TARGET_PID} ] && [ ${BATCH_MODE} = false ]; then
+    if [ -z ${TARGET_PID} ]; then
         # interactive mode
         local IFS=$'\n'
         CANDIDATES=($(call_jps | grep -v sun.tools.jps.Jps | awk '{print $0}'))
@@ -680,13 +809,11 @@ parse_arguments()
 
         # check the process already using telnet port if equals to target pid
         if [[ ($telnetPortPid) && ($TARGET_PID != $telnetPortPid) ]]; then
-            echo "[ERROR] Target process $TARGET_PID is not the process using port $TELNET_PORT, you will connect to an unexpected process."
-            echo "[ERROR] 1. Try to restart as.sh, select process $telnetPortPid, shutdown it first with running the 'stop' command."
-            echo "[ERROR] 2. Try to use different telnet port, for example: as.sh --telnet-port 9998 --http-port -1"
+            print_telnet_port_pid_error
             exit 1
         fi
         if [[ ($httpPortPid) && ($TARGET_PID != $httpPortPid) ]]; then
-            echo "Target process $TARGET_PID is not the process using port $HTTP_PORT, you will connect to an unexpected process."
+            echo "Target process $TARGET_PID is not the process using port $(getHttpPortOrDefault), you will connect to an unexpected process."
             echo "1. Try to restart as.sh, select process $httpPortPid, shutdown it first with running the 'stop' command."
             echo "2. Try to use different http port, for example: as.sh --telnet-port 9998 --http-port 9999"
             exit 1
@@ -728,14 +855,47 @@ attach_jvm()
         tempArgs+=("${STAT_URL}")
     fi
 
+    if [ "${APP_NAME}" ]; then
+        tempArgs+=("-app-name")
+        tempArgs+=("${APP_NAME}")
+    fi
+
+    if [ "${USERNAME}" ]; then
+        tempArgs+=("-username")
+        tempArgs+=("${USERNAME}")
+    fi
+
+    if [ "${PASSWORD}" ]; then
+        tempArgs+=("-password")
+        tempArgs+=("${PASSWORD}")
+    fi
+
+    if [ "${DISABLED_COMMANDS}" ]; then
+        tempArgs+=("-disabled-commands")
+        tempArgs+=("${DISABLED_COMMANDS}")
+    fi
+
+    if [ "${TARGET_IP}" ]; then
+        tempArgs+=("-target-ip")
+        tempArgs+=("${TARGET_IP}")
+    fi
+    if [ "${TELNET_PORT}" ]; then
+        tempArgs+=("-telnet-port")
+        tempArgs+=("${TELNET_PORT}")
+    fi
+    if [ "${HTTP_PORT}" ]; then
+        tempArgs+=("-http-port")
+        tempArgs+=("${HTTP_PORT}")
+    fi
+    if [ "${SESSION_TIMEOUT}" ]; then
+        tempArgs+=("-session-timeout")
+        tempArgs+=("${SESSION_TIMEOUT}")
+    fi
+
     "${java_command[@]}" \
         ${ARTHAS_OPTS} ${JVM_OPTS} \
         -jar "${arthas_lib_dir}/arthas-core.jar" \
             -pid ${TARGET_PID} \
-            -target-ip ${TARGET_IP} \
-            -telnet-port ${TELNET_PORT} \
-            -http-port ${HTTP_PORT} \
-            -session-timeout ${SESSION_TIMEOUT} \
             "${tempArgs[@]}" \
             -core "${arthas_lib_dir}/arthas-core.jar" \
             -agent "${arthas_lib_dir}/arthas-agent.jar"
@@ -779,6 +939,52 @@ sanity_check() {
     fi
 }
 
+port_pid_check() {
+    if [[ $(getTelnetPortOrDefault) > 0 ]]; then
+        local telnet_output
+        local find_process_status
+        # declare local var before var=$()
+        telnet_output=$(find_listen_port_process_by_client)
+        find_process_status=$?
+        #echo "find_process_status: $find_process_status"
+        #echo "telnet_output: $telnet_output"
+
+        #check return code
+        if [[ $find_process_status -eq $STATUS_EXEC_TIMEOUT ]]; then
+            print_telnet_port_used_error "detection timeout"
+            exit 1
+        elif [[ $find_process_status -eq $STATUS_EXEC_ERROR ]]; then
+            print_telnet_port_used_error "detection error"
+            exit 1
+        fi
+
+        if [[ -n $telnet_output ]]; then
+            # check JAVA_PID
+            telnetPortPid=$(echo "$telnet_output" | grep JAVA_PID | awk '{ print $2 }')
+            #echo "telnetPortPid: $telnetPortPid"
+            # check the process already using telnet port if equals to target pid
+            if [[ -n $telnetPortPid && ($TARGET_PID != $telnetPortPid) ]]; then
+                print_telnet_port_pid_error
+                exit 1
+            fi
+        fi
+
+    fi
+}
+
+print_telnet_port_pid_error() {
+    echo "[ERROR] The telnet port $(getTelnetPortOrDefault) is used by process $telnetPortPid instead of target process $TARGET_PID, you will connect to an unexpected process."
+    echo "[ERROR] 1. Try to restart as.sh, select process $telnetPortPid, shutdown it first with running the 'stop' command."
+    echo "[ERROR] 2. Try to stop the existing arthas instance: java -jar arthas-client.jar 127.0.0.1 $(getTelnetPortOrDefault) -c \"stop\""
+    echo "[ERROR] 3. Try to use different telnet port, for example: as.sh --telnet-port 9998 --http-port -1"
+}
+
+print_telnet_port_used_error() {
+    local error_msg=$1
+    echo "[ERROR] The telnet port $(getTelnetPortOrDefault) is used, but process $error_msg, you will connect to an unexpected process."
+    echo "[ERROR] Try to use different telnet port, for example: as.sh --telnet-port 9998 --http-port -1"
+}
+
 # active console
 # $1 : arthas_lib_dir
 active_console()
@@ -804,16 +1010,16 @@ active_console()
         if [ "${COMMAND}" ] ; then
         "${JAVA_HOME}/bin/java" ${ARTHAS_OPTS} ${JVM_OPTS} \
              -jar "${arthas_lib_dir}/arthas-client.jar" \
-             ${TARGET_IP} \
-             ${TELNET_PORT} \
+             $(getTargetIPOrDefault) \
+             $(getTelnetPortOrDefault) \
              "${tempArgs[@]}" \
              -c "${COMMAND}"
         fi
         if [ "${BATCH_FILE}" ] ; then
         "${JAVA_HOME}/bin/java" ${ARTHAS_OPTS} ${JVM_OPTS} \
              -jar "${arthas_lib_dir}/arthas-client.jar" \
-             ${TARGET_IP} \
-             ${TELNET_PORT} \
+             $(getTargetIPOrDefault) \
+             $(getTelnetPortOrDefault) \
              "${tempArgs[@]}" \
              -f ${BATCH_FILE}
         fi
@@ -822,12 +1028,12 @@ active_console()
         if [[ $(command -v telnet) == *"system32"* ]] ; then
             # Windows/system32/telnet.exe can not run in Cygwin/MinGw
             echo "It seems that current bash is under Windows. $(command -v telnet) can not run under bash."
-            echo "Please start cmd.exe from Windows start menu, and then run telnet ${TARGET_IP} ${TELNET_PORT} to connect to target process."
-            echo "Or visit http://127.0.0.1:${HTTP_PORT} to connect to target process."
+            echo "Please start cmd.exe from Windows start menu, and then run telnet $(getTargetIPOrDefault) $(getTelnetPortOrDefault) to connect to target process."
+            echo "Or visit http://127.0.0.1:$(getHttpPortOrDefault) to connect to target process."
             return 1
         fi
         echo "telnet connecting to arthas server... current timestamp is `date +%s`"
-        telnet ${TARGET_IP} ${TELNET_PORT}
+        telnet $(getTargetIPOrDefault) $(getTelnetPortOrDefault)
     else
         echo "'telnet' is required." 1>&2
         return 1
@@ -879,6 +1085,8 @@ main()
     fi
 
     sanity_check
+
+    port_pid_check
 
     echo "Calculating attach execution time..."
     time (attach_jvm "${ARTHAS_HOME}" || exit 1)
