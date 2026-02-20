@@ -1,28 +1,34 @@
 package com.taobao.arthas.core.command.klass100;
 
+import com.alibaba.arthas.deps.org.slf4j.Logger;
+import com.alibaba.arthas.deps.org.slf4j.LoggerFactory;
 import com.taobao.arthas.core.command.Constants;
+import com.taobao.arthas.core.command.model.ClassDetailVO;
+import com.taobao.arthas.core.command.model.ClassLoaderModel;
+import com.taobao.arthas.core.command.model.ClassLoaderVO;
+import com.taobao.arthas.core.command.model.ClassSetVO;
+import com.taobao.arthas.core.command.model.MessageModel;
+import com.taobao.arthas.core.command.model.RowAffectModel;
 import com.taobao.arthas.core.shell.command.AnnotatedCommand;
 import com.taobao.arthas.core.shell.command.CommandProcess;
+import com.taobao.arthas.core.shell.handlers.Handler;
 import com.taobao.arthas.core.util.ClassUtils;
+import com.taobao.arthas.core.util.ClassLoaderUtils;
+import com.taobao.arthas.core.util.ResultUtils;
 import com.taobao.arthas.core.util.StringUtils;
 import com.taobao.arthas.core.util.affect.RowAffect;
-import com.taobao.arthas.core.view.ObjectView;
 import com.taobao.middleware.cli.annotations.Description;
 import com.taobao.middleware.cli.annotations.Name;
 import com.taobao.middleware.cli.annotations.Option;
 import com.taobao.middleware.cli.annotations.Summary;
-import com.taobao.text.Decoration;
-import com.taobao.text.ui.Element;
-import com.taobao.text.ui.LabelElement;
-import com.taobao.text.ui.RowElement;
-import com.taobao.text.ui.TableElement;
-import com.taobao.text.ui.TreeElement;
-import com.taobao.text.util.RenderUtil;
 
 import java.lang.instrument.Instrumentation;
 import java.net.URL;
-import java.net.URLClassLoader;
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
@@ -35,6 +41,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Pattern;
 
 @Name("classloader")
 @Summary("Show classloader info")
@@ -47,21 +54,47 @@ import java.util.TreeSet;
         "  classloader -a\n" +
         "  classloader -a -c 327a647b\n" +
         "  classloader -c 659e0bfd --load demo.MathGame\n" +
+        "  classloader -u      # url statistics\n" +
+        "  classloader -c 659e0bfd --url-classes\n" +
+        "  classloader -c 659e0bfd --url-classes -d\n" +
+        "  classloader -c 659e0bfd --url-classes --jar spring-core --class org.springframework\n" +
         Constants.WIKI + Constants.WIKI_HOME + "classloader")
 public class ClassLoaderCommand extends AnnotatedCommand {
+
+    private static Logger logger = LoggerFactory.getLogger(ClassLoaderCommand.class);
+    private static final int DEFAULT_URL_CLASSES_LIMIT = 100;
+    private static final String UNKNOWN_CODE_SOURCE = "<unknown>";
     private boolean isTree = false;
     private String hashCode;
+    private String classLoaderClass;
     private boolean all = false;
     private String resource;
     private boolean includeReflectionClassLoader = true;
     private boolean listClassLoader = false;
 
+    private boolean urlStat = false;
+
+    private boolean urlClasses = false;
+    private boolean urlClassesDetail = false;
+    private boolean urlClassesRegEx = false;
+    private int urlClassesLimit = DEFAULT_URL_CLASSES_LIMIT;
+    private String jarFilter;
+    private String classFilter;
+
     private String loadClass = null;
+
+    private volatile boolean isInterrupted = false;
 
     @Option(shortName = "t", longName = "tree", flag = true)
     @Description("Display ClassLoader tree")
     public void setTree(boolean tree) {
         isTree = tree;
+    }
+    
+    @Option(longName = "classLoaderClass")
+    @Description("The class name of the special class's classLoader.")
+    public void setClassLoaderClass(String classLoaderClass) {
+        this.classLoaderClass = classLoaderClass;
     }
 
     @Option(shortName = "c", longName = "classloader")
@@ -100,17 +133,127 @@ public class ClassLoaderCommand extends AnnotatedCommand {
         this.loadClass = className;
     }
 
+    @Option(shortName = "u", longName = "url-stat", flag = true)
+    @Description("Display classloader url statistics")
+    public void setUrlStat(boolean urlStat) {
+        this.urlStat = urlStat;
+    }
+
+    @Option(longName = "url-classes", flag = true)
+    @Description("Display relationship between jar(URL) and loaded classes in the specified ClassLoader")
+    public void setUrlClasses(boolean urlClasses) {
+        this.urlClasses = urlClasses;
+    }
+
+    @Option(shortName = "d", longName = "details", flag = true)
+    @Description("Display class list for each jar(URL), only works with --url-classes")
+    public void setUrlClassesDetail(boolean urlClassesDetail) {
+        this.urlClassesDetail = urlClassesDetail;
+    }
+
+    @Option(shortName = "E", longName = "regex", flag = true)
+    @Description("Enable regular expression to match for --jar/--class, only works with --url-classes")
+    public void setUrlClassesRegEx(boolean urlClassesRegEx) {
+        this.urlClassesRegEx = urlClassesRegEx;
+    }
+
+    @Option(shortName = "n", longName = "limit")
+    @Description("Maximum number of classes to display per jar(URL) in details mode (100 by default), only works with --url-classes -d")
+    public void setUrlClassesLimit(int urlClassesLimit) {
+        this.urlClassesLimit = urlClassesLimit;
+    }
+
+    @Option(longName = "jar")
+    @Description("Filter jar(URL) by keyword (or regex with -E), only works with --url-classes")
+    public void setJarFilter(String jarFilter) {
+        this.jarFilter = jarFilter;
+    }
+
+    @Option(longName = "class")
+    @Description("Filter classes by keyword/package (or regex with -E), only works with --url-classes")
+    public void setClassFilter(String classFilter) {
+        this.classFilter = StringUtils.normalizeClassName(classFilter);
+    }
+
     @Override
     public void process(CommandProcess process) {
+        // ctrl-C support
+        process.interruptHandler(new ClassLoaderInterruptHandler(this));
+        ClassLoader targetClassLoader = null;
+        boolean classLoaderSpecified = false;
+
         Instrumentation inst = process.session().getInstrumentation();
+
+        if (urlStat) {
+            Map<ClassLoaderVO, ClassLoaderUrlStat> urlStats = this.urlStats(inst);
+            ClassLoaderModel model = new ClassLoaderModel();
+            model.setUrlStats(urlStats);
+            process.appendResult(model);
+            process.end();
+            return;
+        }
+
+        if (!urlClasses && (urlClassesDetail || urlClassesRegEx || jarFilter != null || classFilter != null
+                || urlClassesLimit != DEFAULT_URL_CLASSES_LIMIT)) {
+            process.end(-1, "Options -d/-E/-n/--jar/--class only work with --url-classes.");
+            return;
+        }
+        
+        if (hashCode != null || classLoaderClass != null) {
+            classLoaderSpecified = true;
+        }
+        
+        if (hashCode != null) {
+            Set<ClassLoader> allClassLoader = getAllClassLoaders(inst);
+            for (ClassLoader cl : allClassLoader) {
+                if (Integer.toHexString(cl.hashCode()).equals(hashCode)) {
+                    targetClassLoader = cl;
+                    break;
+                }
+            }
+        } else if (classLoaderClass != null) {
+            List<ClassLoader> matchedClassLoaders = ClassLoaderUtils.getClassLoaderByClassName(inst, classLoaderClass);
+            if (matchedClassLoaders.size() == 1) {
+                targetClassLoader = matchedClassLoaders.get(0);
+            } else if (matchedClassLoaders.size() > 1) {
+                Collection<ClassLoaderVO> classLoaderVOList = ClassUtils.createClassLoaderVOList(matchedClassLoaders);
+                ClassLoaderModel classloaderModel = new ClassLoaderModel()
+                        .setClassLoaderClass(classLoaderClass)
+                        .setMatchedClassLoaders(classLoaderVOList);
+                process.appendResult(classloaderModel);
+                process.end(-1, "Found more than one classloader by class name, please specify classloader with '-c <classloader hash>'");
+                return;
+            } else {
+                process.end(-1, "Can not find classloader by class name: " + classLoaderClass + ".");
+                return;
+            }
+        }
+
+        if (urlClasses) {
+            if (!classLoaderSpecified) {
+                process.end(-1, "Please specify classloader with '-c <classloader hash>' or '--classLoaderClass <classloader class name>' for --url-classes.");
+                return;
+            }
+            if (targetClassLoader == null) {
+                process.end(-1, "Can not find classloader by hashcode: " + hashCode + ".");
+                return;
+            }
+            processUrlClasses(process, inst, targetClassLoader);
+            return;
+        }
+
         if (all) {
-            processAllClasses(process, inst);
-        } else if (hashCode != null && resource != null) {
-            processResources(process, inst);
-        } else if (hashCode != null && this.loadClass != null) {
-            processLoadClass(process, inst);
-        } else if (hashCode != null) {
-            processClassLoader(process, inst);
+            String hashCode = this.hashCode;
+            if (StringUtils.isBlank(hashCode) && targetClassLoader != null) {
+                hashCode = "" + Integer.toHexString(targetClassLoader.hashCode());
+            }
+            processAllClasses(process, inst, hashCode);
+        } else if (classLoaderSpecified && resource != null) {
+            processResources(process, inst, targetClassLoader);
+        } else if (classLoaderSpecified && this.loadClass != null) {
+            processLoadClass(process, inst, targetClassLoader);
+        } else if (classLoaderSpecified) {
+            processClassLoader(process, inst, targetClassLoader);
         } else if (listClassLoader || isTree){
             processClassLoaders(process, inst);
         } else {
@@ -143,12 +286,10 @@ public class ClassLoaderCommand extends AnnotatedCommand {
         TreeMap<String, ClassLoaderStat> sorted =
                 new TreeMap<String, ClassLoaderStat>(new ValueComparator(classLoaderStats));
         sorted.putAll(classLoaderStats);
+        process.appendResult(new ClassLoaderModel().setClassLoaderStats(sorted));
 
-        Element element = renderStat(sorted);
-        process.write(RenderUtil.render(element, process.width()))
-                .write(com.taobao.arthas.core.util.Constants.EMPTY_STRING);
         affect.rCnt(sorted.keySet().size());
-        process.write(affect + "\n");
+        process.appendResult(new RowAffectModel(affect));
         process.end();
     }
 
@@ -156,81 +297,93 @@ public class ClassLoaderCommand extends AnnotatedCommand {
         RowAffect affect = new RowAffect();
         List<ClassLoaderInfo> classLoaderInfos = includeReflectionClassLoader ? getAllClassLoaderInfo(inst) :
                 getAllClassLoaderInfo(inst, new SunReflectionClassLoaderFilter());
-        Element element = isTree ? renderTree(classLoaderInfos) : renderTable(classLoaderInfos);
-        process.write(RenderUtil.render(element, process.width()))
-                .write(com.taobao.arthas.core.util.Constants.EMPTY_STRING);
+
+        List<ClassLoaderVO> classLoaderVOs = new ArrayList<ClassLoaderVO>(classLoaderInfos.size());
+        for (ClassLoaderInfo classLoaderInfo : classLoaderInfos) {
+            ClassLoaderVO classLoaderVO = ClassUtils.createClassLoaderVO(classLoaderInfo.classLoader);
+            classLoaderVO.setLoadedCount(classLoaderInfo.loadedClassCount());
+            classLoaderVOs.add(classLoaderVO);
+        }
+        if (isTree){
+            classLoaderVOs = processClassLoaderTree(classLoaderVOs);
+        }
+        process.appendResult(new ClassLoaderModel().setClassLoaders(classLoaderVOs).setTree(isTree));
+
         affect.rCnt(classLoaderInfos.size());
-        process.write(affect + "\n");
+        process.appendResult(new RowAffectModel(affect));
         process.end();
     }
 
-    // 根据 hashCode 来打印URLClassLoader的urls
-    private void processClassLoader(CommandProcess process, Instrumentation inst) {
+    // 根据 ClassLoader 来打印URLClassLoader的urls
+    private void processClassLoader(CommandProcess process, Instrumentation inst, ClassLoader targetClassLoader) {
         RowAffect affect = new RowAffect();
-
-        Set<ClassLoader> allClassLoader = getAllClassLoaders(inst);
-        for (ClassLoader cl : allClassLoader) {
-            if (Integer.toHexString(cl.hashCode()).equals(hashCode)) {
-                process.write(RenderUtil.render(renderClassLoaderUrls(cl), process.width()));
+        if (targetClassLoader != null) {
+            URL[] classLoaderUrls = ClassLoaderUtils.getUrls(targetClassLoader);
+            if (classLoaderUrls != null) {
+                affect.rCnt(classLoaderUrls.length);
+                if (classLoaderUrls.length == 0) {
+                    process.appendResult(new MessageModel("urls is empty."));
+                } else {
+                    process.appendResult(new ClassLoaderModel().setUrls(StringUtils.toStringList(classLoaderUrls)));
+                    affect.rCnt(classLoaderUrls.length);
+                }
+            } else {
+                process.appendResult(new MessageModel("not a URLClassLoader."));
             }
         }
-        process.write(com.taobao.arthas.core.util.Constants.EMPTY_STRING);
-        affect.rCnt(allClassLoader.size());
-        process.write(affect + "\n");
+        process.appendResult(new RowAffectModel(affect));
         process.end();
     }
 
     // 使用ClassLoader去getResources
-    private void processResources(CommandProcess process, Instrumentation inst) {
+    private void processResources(CommandProcess process, Instrumentation inst, ClassLoader targetClassLoader) {
         RowAffect affect = new RowAffect();
         int rowCount = 0;
-        Set<ClassLoader> allClassLoader = getAllClassLoaders(inst);
-        for (ClassLoader cl : allClassLoader) {
-            if (Integer.toHexString(cl.hashCode()).equals(hashCode)) {
-                TableElement table = new TableElement().leftCellPadding(1).rightCellPadding(1);
-                try {
-                    Enumeration<URL> urls = cl.getResources(resource);
-                    while (urls.hasMoreElements()) {
-                        URL url = urls.nextElement();
-                        table.row(url.toString());
-                        rowCount++;
-                    }
-                } catch (Throwable e) {
-                    e.printStackTrace();
+        List<String> resources = new ArrayList<String>();
+        if (targetClassLoader != null) {
+            try {
+                Enumeration<URL> urls = targetClassLoader.getResources(resource);
+                while (urls.hasMoreElements()) {
+                    URL url = urls.nextElement();
+                    resources.add(url.toString());
+                    rowCount++;
                 }
-                process.write(RenderUtil.render(table, process.width()) + "\n");
+            } catch (Throwable e) {
+                logger.warn("get resource failed, resource: {}", resource, e);
             }
         }
-        process.write(com.taobao.arthas.core.util.Constants.EMPTY_STRING);
         affect.rCnt(rowCount);
-        process.write(affect + "\n");
+
+        process.appendResult(new ClassLoaderModel().setResources(resources));
+        process.appendResult(new RowAffectModel(affect));
         process.end();
     }
 
     // Use ClassLoader to loadClass
-    private void processLoadClass(CommandProcess process, Instrumentation inst) {
-        Set<ClassLoader> allClassLoader = getAllClassLoaders(inst);
-        for (ClassLoader cl : allClassLoader) {
-            if (Integer.toHexString(cl.hashCode()).equals(hashCode)) {
-                try {
-                    Class<?> clazz = cl.loadClass(this.loadClass);
-                    process.write("load class success.\n");
-                    process.write(RenderUtil.render(ClassUtils.renderClassInfo(clazz), process.width()) + "\n");
+    private void processLoadClass(CommandProcess process, Instrumentation inst, ClassLoader targetClassLoader) {
+        if (targetClassLoader != null) {
+            try {
+                Class<?> clazz = targetClassLoader.loadClass(this.loadClass);
+                process.appendResult(new MessageModel("load class success."));
+                ClassDetailVO classInfo = ClassUtils.createClassInfo(clazz, false, null);
+                process.appendResult(new ClassLoaderModel().setLoadClass(classInfo));
 
-                } catch (Throwable e) {
-                    e.printStackTrace();
-                    process.write("load class error.\n" + StringUtils.objectToString(new ObjectView(e, 1).draw()));
-                }
+            } catch (Throwable e) {
+                logger.warn("load class error, class: {}", this.loadClass, e);
+                process.end(-1, "load class error, class: "+this.loadClass+", error: "+e.toString());
+                return;
             }
         }
-        process.write("\n");
         process.end();
     }
 
-    private void processAllClasses(CommandProcess process, Instrumentation inst) {
+    private void processAllClasses(CommandProcess process, Instrumentation inst,String hashCode) {
         RowAffect affect = new RowAffect();
-        process.write(RenderUtil.render(renderClasses(hashCode, inst), process.width()));
-        process.write(affect + "\n");
+        getAllClasses(hashCode, inst, affect, process);
+        if (checkInterrupted(process)) {
+            return;
+        }
+        process.appendResult(new RowAffectModel(affect));
         process.end();
     }
 
@@ -239,17 +392,15 @@ public class ClassLoaderCommand extends AnnotatedCommand {
      * <p>
      * 当hashCode是null，则把所有的classloader的都打印
      *
-     * @param hashCode
-     * @return
      */
     @SuppressWarnings("rawtypes")
-    private static Element renderClasses(String hashCode, Instrumentation inst) {
+    private void getAllClasses(String hashCode, Instrumentation inst, RowAffect affect, CommandProcess process) {
         int hashCodeInt = -1;
         if (hashCode != null) {
             hashCodeInt = Integer.valueOf(hashCode, 16);
         }
 
-        SortedSet<Class> bootstrapClassSet = new TreeSet<Class>(new Comparator<Class>() {
+        SortedSet<Class<?>> bootstrapClassSet = new TreeSet<Class<?>>(new Comparator<Class>() {
             @Override
             public int compare(Class o1, Class o2) {
                 return o1.getName().compareTo(o2.getName());
@@ -257,7 +408,7 @@ public class ClassLoaderCommand extends AnnotatedCommand {
         });
 
         Class[] allLoadedClasses = inst.getAllLoadedClasses();
-        Map<ClassLoader, SortedSet<Class>> classLoaderClassMap = new HashMap<ClassLoader, SortedSet<Class>>();
+        Map<ClassLoader, SortedSet<Class<?>>> classLoaderClassMap = new HashMap<ClassLoader, SortedSet<Class<?>>>();
         for (Class clazz : allLoadedClasses) {
             ClassLoader classLoader = clazz.getClassLoader();
             // Class loaded by BootstrapClassLoader
@@ -272,11 +423,11 @@ public class ClassLoaderCommand extends AnnotatedCommand {
                 continue;
             }
 
-            SortedSet<Class> classSet = classLoaderClassMap.get(classLoader);
+            SortedSet<Class<?>> classSet = classLoaderClassMap.get(classLoader);
             if (classSet == null) {
-                classSet = new TreeSet<Class>(new Comparator<Class>() {
+                classSet = new TreeSet<Class<?>>(new Comparator<Class<?>>() {
                     @Override
-                    public int compare(Class o1, Class o2) {
+                    public int compare(Class<?> o1, Class<?> o2) {
                         return o1.getName().compareTo(o2.getName());
                     }
                 });
@@ -285,102 +436,283 @@ public class ClassLoaderCommand extends AnnotatedCommand {
             classSet.add(clazz);
         }
 
-        TableElement table = new TableElement().leftCellPadding(1).rightCellPadding(1);
+        // output bootstrapClassSet
+        int pageSize = 256;
+        processClassSet(process, ClassUtils.createClassLoaderVO(null), bootstrapClassSet, pageSize, affect);
 
-        if (!bootstrapClassSet.isEmpty()) {
-            table.row(new LabelElement("hash:null, BootstrapClassLoader").style(Decoration.bold.bold()));
-            for (Class clazz : bootstrapClassSet) {
-                table.row(new LabelElement(clazz.getName()));
+        // output other classSet
+        for (Entry<ClassLoader, SortedSet<Class<?>>> entry : classLoaderClassMap.entrySet()) {
+            if (checkInterrupted(process)) {
+                return;
             }
-            table.row(new LabelElement(" "));
-        }
-
-        for (Entry<ClassLoader, SortedSet<Class>> entry : classLoaderClassMap.entrySet()) {
             ClassLoader classLoader = entry.getKey();
-            SortedSet<Class> classSet = entry.getValue();
-
-            table.row(new LabelElement("hash:" + classLoader.hashCode() + ", " + classLoader.toString())
-                    .style(Decoration.bold.bold()));
-            for (Class clazz : classSet) {
-                table.row(new LabelElement(clazz.getName()));
-            }
-
-            table.row(new LabelElement(" "));
+            SortedSet<Class<?>> classSet = entry.getValue();
+            processClassSet(process, ClassUtils.createClassLoaderVO(classLoader), classSet, pageSize, affect);
         }
-        return table;
     }
 
-    private static Element renderClassLoaderUrls(ClassLoader classLoader) {
-        StringBuilder sb = new StringBuilder();
-        if (classLoader instanceof URLClassLoader) {
-            URLClassLoader cl = (URLClassLoader) classLoader;
-            URL[] urls = cl.getURLs();
-            if (urls != null) {
-                for (URL url : urls) {
-                    sb.append(url.toString() + "\n");
-                }
-                return new LabelElement(sb.toString());
-            } else {
-                return new LabelElement("urls is empty.");
+    private void processClassSet(final CommandProcess process, final ClassLoaderVO classLoaderVO, Collection<Class<?>> classes, int pageSize, final RowAffect affect) {
+        //分批输出classNames, Ctrl+C可以中断执行
+        ResultUtils.processClassNames(classes, pageSize, new ResultUtils.PaginationHandler<List<String>>() {
+            @Override
+            public boolean handle(List<String> classNames, int segment) {
+                process.appendResult(new ClassLoaderModel().setClassSet(new ClassSetVO(classLoaderVO, classNames, segment)));
+                affect.rCnt(classNames.size());
+                return !checkInterrupted(process);
             }
-        } else {
-            return new LabelElement("not a URLClassLoader.\n");
+        });
+    }
+
+    private boolean checkInterrupted(CommandProcess process) {
+        if (!process.isRunning()) {
+            return true;
         }
+        if(isInterrupted){
+            process.end(-1, "Processing has been interrupted");
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private void processUrlClasses(CommandProcess process, Instrumentation inst, ClassLoader targetClassLoader) {
+        if (!urlClassesDetail && urlClassesLimit != DEFAULT_URL_CLASSES_LIMIT) {
+            process.end(-1, "Option -n/--limit only works with --url-classes -d.");
+            return;
+        }
+        if (urlClassesDetail && urlClassesLimit <= 0) {
+            process.end(-1, "Option -n/--limit must be greater than 0.");
+            return;
+        }
+
+        Pattern jarPattern = null;
+        Pattern classPattern = null;
+        if (urlClassesRegEx) {
+            try {
+                if (jarFilter != null) {
+                    jarPattern = Pattern.compile(jarFilter);
+                }
+                if (classFilter != null) {
+                    classPattern = Pattern.compile(classFilter);
+                }
+            } catch (Throwable e) {
+                process.end(-1, "Regex compile error: " + e.getMessage());
+                return;
+            }
+        }
+
+        Map<String, UrlClassStatBuilder> statsMap = new HashMap<String, UrlClassStatBuilder>();
+        Class<?>[] allLoadedClasses = inst.getAllLoadedClasses();
+        for (int i = 0; i < allLoadedClasses.length; i++) {
+            if ((i & 0x3FFF) == 0 && checkInterrupted(process)) {
+                return;
+            }
+            Class<?> clazz = allLoadedClasses[i];
+            if (clazz == null) {
+                continue;
+            }
+            if (clazz.getClassLoader() != targetClassLoader) {
+                continue;
+            }
+
+            String url = codeSourceLocation(clazz);
+            if (!matchJarFilter(url, jarPattern)) {
+                continue;
+            }
+
+            UrlClassStatBuilder builder = statsMap.get(url);
+            if (builder == null) {
+                builder = new UrlClassStatBuilder(url, classFilter != null, urlClassesDetail ? urlClassesLimit : 0);
+                statsMap.put(url, builder);
+            }
+            builder.increaseLoadedCount();
+
+            if (classFilter != null) {
+                if (matchClassFilter(clazz.getName(), classPattern)) {
+                    builder.increaseMatchedCount();
+                    builder.tryAddClass(clazz.getName());
+                }
+            } else {
+                builder.tryAddClass(clazz.getName());
+            }
+        }
+
+        boolean hasClassFilter = classFilter != null;
+        List<UrlClassStat> stats = new ArrayList<UrlClassStat>(statsMap.size());
+        for (UrlClassStatBuilder builder : statsMap.values()) {
+            if (hasClassFilter && builder.getMatchedClassCount() == 0) {
+                continue;
+            }
+            stats.add(builder.build());
+        }
+
+        Collections.sort(stats, new Comparator<UrlClassStat>() {
+            @Override
+            public int compare(UrlClassStat o1, UrlClassStat o2) {
+                int c1 = hasClassFilter ? safeInt(o1.getMatchedClassCount()) : o1.getLoadedClassCount();
+                int c2 = hasClassFilter ? safeInt(o2.getMatchedClassCount()) : o2.getLoadedClassCount();
+                int diff = c2 - c1;
+                if (diff != 0) {
+                    return diff;
+                }
+                return o1.getUrl().compareTo(o2.getUrl());
+            }
+        });
+
+        RowAffect affect = new RowAffect();
+        affect.rCnt(stats.size());
+        ClassLoaderModel model = new ClassLoaderModel()
+                .setClassLoader(ClassUtils.createClassLoaderVO(targetClassLoader))
+                .setUrlClassStats(stats)
+                .setUrlClassStatsDetail(urlClassesDetail);
+        process.appendResult(model);
+        process.appendResult(new RowAffectModel(affect));
+        process.end();
+    }
+
+    private static int safeInt(Integer v) {
+        return v == null ? 0 : v.intValue();
+    }
+
+    private boolean matchJarFilter(String url, Pattern jarPattern) {
+        if (jarFilter == null) {
+            return true;
+        }
+        String jarName = guessJarName(url);
+        if (urlClassesRegEx) {
+            return jarPattern != null && (jarPattern.matcher(url).find() || jarPattern.matcher(jarName).find());
+        }
+        return containsIgnoreCase(url, jarFilter) || containsIgnoreCase(jarName, jarFilter);
+    }
+
+    private boolean matchClassFilter(String className, Pattern classPattern) {
+        if (classFilter == null) {
+            return true;
+        }
+        if (urlClassesRegEx) {
+            return classPattern != null && classPattern.matcher(className).find();
+        }
+        return containsIgnoreCase(className, classFilter);
+    }
+
+    static boolean containsIgnoreCase(String text, String keyword) {
+        if (text == null || keyword == null) {
+            return false;
+        }
+        return text.toLowerCase().contains(keyword.toLowerCase());
+    }
+
+    private static String codeSourceLocation(Class<?> clazz) {
+        try {
+            ProtectionDomain protectionDomain = clazz.getProtectionDomain();
+            if (protectionDomain == null) {
+                return UNKNOWN_CODE_SOURCE;
+            }
+            CodeSource codeSource = protectionDomain.getCodeSource();
+            if (codeSource == null) {
+                return UNKNOWN_CODE_SOURCE;
+            }
+            URL location = codeSource.getLocation();
+            if (location == null) {
+                return UNKNOWN_CODE_SOURCE;
+            }
+            return location.toString();
+        } catch (Throwable t) {
+            return UNKNOWN_CODE_SOURCE;
+        }
+    }
+
+    static String guessJarName(String url) {
+        if (url == null) {
+            return com.taobao.arthas.core.util.Constants.EMPTY_STRING;
+        }
+        String s = url;
+        int bangIndex = s.lastIndexOf('!');
+        if (bangIndex >= 0) {
+            s = s.substring(0, bangIndex);
+        }
+        while (s.endsWith("/")) {
+            s = s.substring(0, s.length() - 1);
+        }
+        int slash = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+        if (slash >= 0 && slash < s.length() - 1) {
+            s = s.substring(slash + 1);
+        }
+        return s;
+    }
+
+    private Map<ClassLoaderVO, ClassLoaderUrlStat> urlStats(Instrumentation inst) {
+        Map<ClassLoaderVO, ClassLoaderUrlStat> urlStats = new HashMap<ClassLoaderVO, ClassLoaderUrlStat>();
+        Map<ClassLoader, Set<String>> usedUrlsMap = new HashMap<ClassLoader, Set<String>>();
+        for (Class<?> clazz : inst.getAllLoadedClasses()) {
+            ClassLoader classLoader = clazz.getClassLoader();
+            if (classLoader != null) {
+                ProtectionDomain protectionDomain = clazz.getProtectionDomain();
+                CodeSource codeSource = protectionDomain.getCodeSource();
+                if (codeSource != null) {
+                    URL location = codeSource.getLocation();
+                    if (location != null) {
+                        Set<String> urls = usedUrlsMap.get(classLoader);
+                        if (urls == null) {
+                            urls = new HashSet<String>();
+                            usedUrlsMap.put(classLoader, urls);
+                        }
+                        urls.add(location.toString());
+                    }
+                }
+            }
+        }
+        for (Entry<ClassLoader, Set<String>> entry : usedUrlsMap.entrySet()) {
+            ClassLoader loader = entry.getKey();
+            Set<String> usedUrls = entry.getValue();
+            URL[] allUrls = ClassLoaderUtils.getUrls(loader);
+            List<String> unusedUrls = new ArrayList<String>();
+            if (allUrls != null) {
+                for (URL url : allUrls) {
+                    String urlStr = url.toString();
+                    if (!usedUrls.contains(urlStr)) {
+                        unusedUrls.add(urlStr);
+                    }
+                }
+            }
+
+            urlStats.put(ClassUtils.createClassLoaderVO(loader), new ClassLoaderUrlStat(usedUrls, unusedUrls));
+        }
+        return urlStats;
     }
 
     // 以树状列出ClassLoader的继承结构
-    private static Element renderTree(List<ClassLoaderInfo> classLoaderInfos) {
-        TreeElement root = new TreeElement();
+    private static List<ClassLoaderVO> processClassLoaderTree(List<ClassLoaderVO> classLoaders) {
+        List<ClassLoaderVO> rootClassLoaders = new ArrayList<>();
+        Map<String, List<ClassLoaderVO>> childMap = new HashMap<>();
 
-        List<ClassLoaderInfo> parentNullClassLoaders = new ArrayList<ClassLoaderInfo>();
-        List<ClassLoaderInfo> parentNotNullClassLoaders = new ArrayList<ClassLoaderInfo>();
-        for (ClassLoaderInfo info : classLoaderInfos) {
-            if (info.parent() == null) {
-                parentNullClassLoaders.add(info);
+        // 分离根节点和非根节点，并构建父子关系映射
+        for (ClassLoaderVO classLoaderVO : classLoaders) {
+            if (classLoaderVO.getParent() == null) {
+                rootClassLoaders.add(classLoaderVO);
             } else {
-                parentNotNullClassLoaders.add(info);
+                childMap.computeIfAbsent(classLoaderVO.getParent(), k -> new ArrayList<>()).add(classLoaderVO);
             }
         }
 
-        for (ClassLoaderInfo info : parentNullClassLoaders) {
-            if (info.parent() == null) {
-                TreeElement parent = new TreeElement(info.getName());
-                renderParent(parent, info, parentNotNullClassLoaders);
-                root.addChild(parent);
-            }
+        // 构建树
+        for (ClassLoaderVO root : rootClassLoaders) {
+            buildTree(root, childMap);
         }
 
-        return root;
+        return rootClassLoaders;
     }
 
-    // 统计所有的ClassLoader的信息
-    private static TableElement renderTable(List<ClassLoaderInfo> classLoaderInfos) {
-        TableElement table = new TableElement().leftCellPadding(1).rightCellPadding(1);
-        table.add(new RowElement().style(Decoration.bold.bold()).add("name", "loadedCount", "hash", "parent"));
-        for (ClassLoaderInfo info : classLoaderInfos) {
-            table.row(info.getName(), "" + info.loadedClassCount(), info.hashCodeStr(), info.parentStr());
-        }
-        return table;
-    }
-
-    private static TableElement renderStat(Map<String, ClassLoaderStat> classLoaderStats) {
-        TableElement table = new TableElement().leftCellPadding(1).rightCellPadding(1);
-        table.add(new RowElement().style(Decoration.bold.bold()).add("name", "numberOfInstances", "loadedCountTotal"));
-        for (Map.Entry<String, ClassLoaderStat> entry : classLoaderStats.entrySet()) {
-            table.row(entry.getKey(), "" + entry.getValue().getNumberOfInstance(), "" + entry.getValue().getLoadedCount());
-        }
-        return table;
-    }
-
-    private static void renderParent(TreeElement node, ClassLoaderInfo parent, List<ClassLoaderInfo> classLoaderInfos) {
-        for (ClassLoaderInfo info : classLoaderInfos) {
-            if (info.parent() == parent.classLoader) {
-                TreeElement child = new TreeElement(info.getName());
-                node.addChild(child);
-                renderParent(child, info, classLoaderInfos);
+    private static void buildTree(ClassLoaderVO parent, Map<String, List<ClassLoaderVO>> childMap) {
+        List<ClassLoaderVO> children = childMap.get(parent.getName());
+        if (children != null) {
+            for (ClassLoaderVO child : children) {
+                parent.addChild(child);
+                buildTree(child, childMap);
             }
         }
     }
+
 
     private static Set<ClassLoader> getAllClassLoaders(Instrumentation inst, Filter... filters) {
         Set<ClassLoader> classLoaderSet = new HashSet<ClassLoader>();
@@ -532,15 +864,150 @@ public class ClassLoaderCommand extends AnnotatedCommand {
     }
 
     private static class SunReflectionClassLoaderFilter implements Filter {
-        private static final String REFLECTION_CLASSLOADER = "sun.reflect.DelegatingClassLoader";
+        private static final List<String> REFLECTION_CLASSLOADERS = Arrays.asList("sun.reflect.DelegatingClassLoader",
+                "jdk.internal.reflect.DelegatingClassLoader");
 
         @Override
         public boolean accept(ClassLoader classLoader) {
-            return !REFLECTION_CLASSLOADER.equals(classLoader.getClass().getName());
+            return !REFLECTION_CLASSLOADERS.contains(classLoader.getClass().getName());
         }
     }
 
-    private static class ClassLoaderStat {
+    public static class UrlClassStat {
+        private String url;
+        private int loadedClassCount;
+        private Integer matchedClassCount;
+        private List<String> classes;
+        private boolean truncated;
+
+        public String getUrl() {
+            return url;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public int getLoadedClassCount() {
+            return loadedClassCount;
+        }
+
+        public void setLoadedClassCount(int loadedClassCount) {
+            this.loadedClassCount = loadedClassCount;
+        }
+
+        public Integer getMatchedClassCount() {
+            return matchedClassCount;
+        }
+
+        public void setMatchedClassCount(Integer matchedClassCount) {
+            this.matchedClassCount = matchedClassCount;
+        }
+
+        public List<String> getClasses() {
+            return classes;
+        }
+
+        public void setClasses(List<String> classes) {
+            this.classes = classes;
+        }
+
+        public boolean isTruncated() {
+            return truncated;
+        }
+
+        public void setTruncated(boolean truncated) {
+            this.truncated = truncated;
+        }
+    }
+
+    private static class UrlClassStatBuilder {
+        private final String url;
+        private final boolean hasClassFilter;
+        private final int limit;
+        private int loadedClassCount;
+        private int matchedClassCount;
+        private SortedSet<String> classNames;
+        private boolean truncated;
+
+        UrlClassStatBuilder(String url, boolean hasClassFilter, int limit) {
+            this.url = url;
+            this.hasClassFilter = hasClassFilter;
+            this.limit = limit;
+            if (limit > 0) {
+                this.classNames = new TreeSet<String>();
+            }
+        }
+
+        void increaseLoadedCount() {
+            loadedClassCount++;
+        }
+
+        void increaseMatchedCount() {
+            matchedClassCount++;
+        }
+
+        int getMatchedClassCount() {
+            return matchedClassCount;
+        }
+
+        void tryAddClass(String className) {
+            if (classNames == null) {
+                return;
+            }
+            if (classNames.size() >= limit) {
+                truncated = true;
+                return;
+            }
+            classNames.add(className);
+        }
+
+        UrlClassStat build() {
+            UrlClassStat stat = new UrlClassStat();
+            stat.setUrl(url);
+            stat.setLoadedClassCount(loadedClassCount);
+            if (hasClassFilter) {
+                stat.setMatchedClassCount(matchedClassCount);
+            }
+            if (classNames != null) {
+                stat.setClasses(new ArrayList<String>(classNames));
+            }
+            stat.setTruncated(truncated);
+            return stat;
+        }
+    }
+
+    public static class ClassLoaderUrlStat {
+        private Collection<String> usedUrls;
+        private Collection<String> unUsedUrls;
+
+        public ClassLoaderUrlStat() {
+        }
+
+        public ClassLoaderUrlStat(Collection<String> usedUrls, Collection<String> unUsedUrls) {
+            super();
+            this.usedUrls = usedUrls;
+            this.unUsedUrls = unUsedUrls;
+        }
+
+        public Collection<String> getUsedUrls() {
+            return usedUrls;
+        }
+
+        public void setUsedUrls(Collection<String> usedUrls) {
+            this.usedUrls = usedUrls;
+        }
+
+        public Collection<String> getUnUsedUrls() {
+            return unUsedUrls;
+        }
+
+        public void setUnUsedUrls(Collection<String> unUsedUrls) {
+            this.unUsedUrls = unUsedUrls;
+        }
+    }
+
+    public static class ClassLoaderStat {
         private int loadedCount;
         private int numberOfInstance;
 
@@ -552,11 +1019,11 @@ public class ClassLoaderCommand extends AnnotatedCommand {
             this.numberOfInstance += count;
         }
 
-        int getLoadedCount() {
+        public int getLoadedCount() {
             return loadedCount;
         }
 
-        int getNumberOfInstance() {
+        public int getNumberOfInstance() {
             return numberOfInstance;
         }
     }
@@ -581,6 +1048,20 @@ public class ClassLoaderCommand extends AnnotatedCommand {
                 return -1;
             }
             return unsortedStats.get(o2).getLoadedCount() - unsortedStats.get(o1).getLoadedCount();
+        }
+    }
+
+    private static class ClassLoaderInterruptHandler implements Handler<Void> {
+
+        private ClassLoaderCommand command;
+
+        public ClassLoaderInterruptHandler(ClassLoaderCommand command) {
+            this.command = command;
+        }
+
+        @Override
+        public void handle(Void event) {
+            command.isInterrupted = true;
         }
     }
 }

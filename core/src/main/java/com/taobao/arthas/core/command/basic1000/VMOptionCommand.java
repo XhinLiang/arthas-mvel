@@ -1,10 +1,8 @@
 package com.taobao.arthas.core.command.basic1000;
 
-import static com.taobao.text.ui.Element.label;
-
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import com.alibaba.arthas.deps.org.slf4j.Logger;
@@ -12,7 +10,9 @@ import com.alibaba.arthas.deps.org.slf4j.LoggerFactory;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import com.sun.management.VMOption;
 import com.taobao.arthas.core.command.Constants;
-import com.taobao.arthas.core.command.express.OgnlExpress;
+import com.taobao.arthas.core.command.model.ChangeResultVO;
+import com.taobao.arthas.core.command.model.MessageModel;
+import com.taobao.arthas.core.command.model.VMOptionModel;
 import com.taobao.arthas.core.shell.cli.Completion;
 import com.taobao.arthas.core.shell.cli.CompletionUtils;
 import com.taobao.arthas.core.shell.command.AnnotatedCommand;
@@ -22,9 +22,6 @@ import com.taobao.middleware.cli.annotations.Argument;
 import com.taobao.middleware.cli.annotations.Description;
 import com.taobao.middleware.cli.annotations.Name;
 import com.taobao.middleware.cli.annotations.Summary;
-import com.taobao.text.Decoration;
-import com.taobao.text.ui.TableElement;
-import com.taobao.text.util.RenderUtil;
 
 /**
  * vmoption command
@@ -32,10 +29,16 @@ import com.taobao.text.util.RenderUtil;
  * @author hengyunabc 2019-09-02
  *
  */
+// @formatter:off
 @Name("vmoption")
 @Summary("Display, and update the vm diagnostic options.")
-@Description("\nExamples:\n" + "  vmoption\n" + "  vmoption PrintGCDetails\n" + "  vmoption PrintGCDetails true\n"
-                + Constants.WIKI + Constants.WIKI_HOME + "vmoption")
+@Description("\nExamples:\n" + 
+        "  vmoption\n" + 
+        "  vmoption PrintGC\n" + 
+        "  vmoption PrintGC true\n" + 
+        "  vmoption PrintGCDetails true\n" + 
+        Constants.WIKI + Constants.WIKI_HOME + "vmoption")
+//@formatter:on
 public class VMOptionCommand extends AnnotatedCommand {
     private static final Logger logger = LoggerFactory.getLogger(VMOptionCommand.class);
 
@@ -66,41 +69,31 @@ public class VMOptionCommand extends AnnotatedCommand {
 
             if (StringUtils.isBlank(name) && StringUtils.isBlank(value)) {
                 // show all options
-                process.write(renderVMOptions(hotSpotDiagnosticMXBean.getDiagnosticOptions(), process.width()));
+                process.appendResult(new VMOptionModel(hotSpotDiagnosticMXBean.getDiagnosticOptions()));
             } else if (StringUtils.isBlank(value)) {
                 // view the specified option
                 VMOption option = hotSpotDiagnosticMXBean.getVMOption(name);
                 if (option == null) {
-                    process.write("In order to change the system properties, you must specify the property value.\n");
+                    process.end(-1, "In order to change the system properties, you must specify the property value.");
+                    return;
                 } else {
-                    process.write(renderVMOptions(Arrays.asList(option), process.width()));
+                    process.appendResult(new VMOptionModel(Collections.singletonList(option)));
                 }
             } else {
+                VMOption vmOption = hotSpotDiagnosticMXBean.getVMOption(name);
+                String originValue = vmOption.getValue();
+
                 // change vm option
                 hotSpotDiagnosticMXBean.setVMOption(name, value);
-                process.write("Successfully updated the vm option.\n");
-                process.write(name + "=" + hotSpotDiagnosticMXBean.getVMOption(name).getValue() + "\n");
+                process.appendResult(new MessageModel("Successfully updated the vm option."));
+                process.appendResult(new VMOptionModel(new ChangeResultVO(name, originValue,
+                        hotSpotDiagnosticMXBean.getVMOption(name).getValue())));
             }
-        } catch (Throwable t) {
-            process.write("Error during setting vm option: " + t.getMessage() + "\n");
-            logger.error("Error during setting vm option", t);
-        } finally {
             process.end();
+        } catch (Throwable t) {
+            logger.error("Error during setting vm option", t);
+            process.end(-1, "Error during setting vm option: " + t.getMessage());
         }
-
-    }
-
-    private static String renderVMOptions(List<VMOption> diagnosticOptions, int width) {
-        TableElement table = new TableElement(1, 1, 1, 1).leftCellPadding(1).rightCellPadding(1);
-        table.row(true, label("KEY").style(Decoration.bold.bold()), label("VALUE").style(Decoration.bold.bold()),
-                        label("ORIGIN").style(Decoration.bold.bold()),
-                        label("WRITEABLE").style(Decoration.bold.bold()));
-
-        for (VMOption option : diagnosticOptions) {
-            table.row(option.getName(), option.getValue(), "" + option.getOrigin(), "" + option.isWriteable());
-        }
-
-        return RenderUtil.render(table, width);
     }
 
     @Override

@@ -35,6 +35,11 @@ public class KeymapCommand extends AnnotatedCommand {
 
     @Override
     public void process(CommandProcess process) {
+        if (!process.session().isTty()) {
+            process.end(-1, "Command 'keymap' is only support tty session.");
+            return;
+        }
+
         InputStream inputrc = Helper.loadInputRcFile();
         try {
             TableElement table = new TableElement(1, 1, 2).leftCellPadding(1).rightCellPadding(1);
@@ -50,7 +55,7 @@ public class KeymapCommand extends AnnotatedCommand {
                     continue;
                 }
                 String[] strings = line.split(":");
-                if (strings != null && strings.length == 2) {
+                if (strings.length == 2) {
                     table.row(strings[0], translate(strings[0]), strings[1]);
                 } else {
                     table.row(line);

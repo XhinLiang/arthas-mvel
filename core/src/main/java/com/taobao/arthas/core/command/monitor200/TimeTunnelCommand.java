@@ -2,12 +2,14 @@ package com.taobao.arthas.core.command.monitor200;
 
 import com.alibaba.arthas.deps.org.slf4j.Logger;
 import com.alibaba.arthas.deps.org.slf4j.LoggerFactory;
+import com.taobao.arthas.core.GlobalOptions;
 import com.taobao.arthas.core.advisor.Advice;
 import com.taobao.arthas.core.advisor.AdviceListener;
 import com.taobao.arthas.core.advisor.ArthasMethod;
 import com.taobao.arthas.core.command.Constants;
 import com.taobao.arthas.core.command.express.ExpressException;
 import com.taobao.arthas.core.command.express.ExpressFactory;
+import com.taobao.arthas.core.command.model.*;
 import com.taobao.arthas.core.shell.command.CommandProcess;
 import com.taobao.arthas.core.shell.handlers.command.CommandInterruptHandler;
 import com.taobao.arthas.core.shell.handlers.shell.QExitHandler;
@@ -16,16 +18,12 @@ import com.taobao.arthas.core.util.SearchUtils;
 import com.taobao.arthas.core.util.StringUtils;
 import com.taobao.arthas.core.util.affect.RowAffect;
 import com.taobao.arthas.core.util.matcher.Matcher;
-import com.taobao.arthas.core.view.ObjectView;
-import com.taobao.middleware.cli.annotations.Description;
-import com.taobao.middleware.cli.annotations.Name;
-import com.taobao.middleware.cli.annotations.Option;
-import com.taobao.middleware.cli.annotations.Summary;
-import com.taobao.middleware.cli.annotations.Argument;
-import com.taobao.text.ui.TableElement;
-import com.taobao.text.util.RenderUtil;
+import com.taobao.middleware.cli.annotations.*;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -48,10 +46,12 @@ import static java.lang.String.format;
         "  tt -i 1000 -w params[0]\n" +
         "  tt -i 1000 -p \n" +
         "  tt -i 1000 -p --replay-times 3 --replay-interval 3000\n" +
+        "  tt -s '{params[0] > 1}' -w '{params}' \n" +
         "  tt --delete-all\n" +
         Constants.WIKI + Constants.WIKI_HOME + "tt")
 public class TimeTunnelCommand extends EnhancerCommand {
     // 时间隧道(时间碎片的集合)
+    // TODO 并非线程安全？
     private static final Map<Integer, TimeFragment> timeFragmentMap = new LinkedHashMap<Integer, TimeFragment>();
     // 时间碎片序列生成器
     private static final AtomicInteger sequence = new AtomicInteger(1000);
@@ -136,6 +136,13 @@ public class TimeTunnelCommand extends EnhancerCommand {
         this.sizeLimit = sizeLimit;
     }
 
+    @Override
+    @Option(shortName = "c", longName = "classloader")
+    @Description("The hash code of the special class's classLoader")
+    public void setHashCode(String hashCode) {
+        super.setHashCode(hashCode);
+    }
+
     @Option(shortName = "w", longName = "watch-express")
     @Description(value = "watch the time fragment by ognl express.\n" + Constants.EXPRESS_EXAMPLES)
     public void setWatchExpress(String watchExpress) {
@@ -168,7 +175,7 @@ public class TimeTunnelCommand extends EnhancerCommand {
     }
 
     @Option(shortName = "n", longName = "limits")
-    @Description("Threshold of execution times")
+    @Description("Threshold of execution times, default value 100")
     public void setNumberOfLimit(int numberOfLimit) {
         this.numberOfLimit = numberOfLimit;
     }
@@ -207,7 +214,6 @@ public class TimeTunnelCommand extends EnhancerCommand {
         return numberOfLimit;
     }
 
-
     public int getReplayTimes() {
         return replayTimes;
     }
@@ -216,16 +222,16 @@ public class TimeTunnelCommand extends EnhancerCommand {
         return replayInterval;
     }
 
+    public Integer getExpand() {
+        return expand;
+    }
+
     private boolean hasWatchExpress() {
         return !StringUtils.isEmpty(watchExpress);
     }
 
     private boolean hasSearchExpress() {
         return !StringUtils.isEmpty(searchExpress);
-    }
-
-    private boolean isNeedExpand() {
-        return null != expand && expand > 0;
     }
 
     /**
@@ -303,6 +309,14 @@ public class TimeTunnelCommand extends EnhancerCommand {
     }
 
     @Override
+    protected Matcher getClassNameExcludeMatcher() {
+        if (classNameExcludeMatcher == null && getExcludeClassPattern() != null) {
+            classNameExcludeMatcher = SearchUtils.classNameMatcher(getExcludeClassPattern(), isRegEx());
+        }
+        return classNameExcludeMatcher;
+    }
+
+    @Override
     protected Matcher getMethodNameMatcher() {
         if (methodNameMatcher == null) {
             methodNameMatcher = SearchUtils.classNameMatcher(getMethodPattern(), isRegEx());
@@ -312,7 +326,7 @@ public class TimeTunnelCommand extends EnhancerCommand {
 
     @Override
     protected AdviceListener getAdviceListener(CommandProcess process) {
-        return new TimeTunnelAdviceListener(this, process);
+        return new TimeTunnelAdviceListener(this, process, GlobalOptions.verbose || this.verbose);
     }
 
     // 展示指定记录
@@ -321,27 +335,22 @@ public class TimeTunnelCommand extends EnhancerCommand {
         try {
             TimeFragment tf = timeFragmentMap.get(index);
             if (null == tf) {
-                process.write(format("Time fragment[%d] does not exist.", index)).write("\n");
+                process.end(1, format("Time fragment[%d] does not exist.", index));
                 return;
             }
 
-            Advice advice = tf.getAdvice();
-            String className = advice.getClazz().getName();
-            String methodName = advice.getMethod().getName();
-            String objectAddress = advice.getTarget() == null ? "NULL" : "0x" + toHexString(advice.getTarget().hashCode());
-
-            TableElement table = TimeTunnelTable.createDefaultTable();
-            TimeTunnelTable.drawTimeTunnel(tf, index, table);
-            TimeTunnelTable.drawMethod(advice, className, methodName, objectAddress, table);
-            TimeTunnelTable.drawParameters(advice, table, isNeedExpand(), expand);
-            TimeTunnelTable.drawReturnObj(advice, table, isNeedExpand(), expand, sizeLimit);
-            TimeTunnelTable.drawThrowException(advice, table, isNeedExpand(), expand);
-
-            process.write(RenderUtil.render(table, process.width()));
+            TimeFragmentVO timeFragmentVO = createTimeFragmentVO(index, tf, expand);
+            TimeTunnelModel timeTunnelModel = new TimeTunnelModel()
+                    .setTimeFragment(timeFragmentVO)
+                    .setExpand(expand)
+                    .setSizeLimit(sizeLimit);
+            process.appendResult(timeTunnelModel);
             affect.rCnt(1);
-        } finally {
-            process.write(affect.toString()).write("\n");
+            process.appendResult(new RowAffectModel(affect));
             process.end();
+        } catch (Throwable e) {
+            logger.warn("tt failed.", e);
+            process.end(1, e.getMessage() + ", visit " + LogUtil.loggingFile() + " for more detail");
         }
     }
 
@@ -351,25 +360,25 @@ public class TimeTunnelCommand extends EnhancerCommand {
         try {
             final TimeFragment tf = timeFragmentMap.get(index);
             if (null == tf) {
-                process.write(format("Time fragment[%d] does not exist.", index)).write("\n");
+                process.end(1, format("Time fragment[%d] does not exist.", index));
                 return;
             }
 
             Advice advice = tf.getAdvice();
-            Object value = ExpressFactory.threadLocalExpress(advice).get(watchExpress);
-            if (isNeedExpand()) {
-                process.write(new ObjectView(value, expand, sizeLimit).draw()).write("\n");
-            } else {
-                process.write(StringUtils.objectToString(value)).write("\n");
-            }
+
+			Object value = ExpressFactory.unpooledExpress(advice.getLoader()).bind(advice).get(watchExpress);
+            TimeTunnelModel timeTunnelModel = new TimeTunnelModel()
+                    .setWatchValue(new ObjectVO(value, expand))
+                    .setExpand(expand)
+                    .setSizeLimit(sizeLimit);
+            process.appendResult(timeTunnelModel);
 
             affect.rCnt(1);
+            process.appendResult(new RowAffectModel(affect));
+            process.end();
         } catch (ExpressException e) {
             logger.warn("tt failed.", e);
-            process.write(e.getMessage() + ", visit " + LogUtil.loggingFile() + " for more detail\n");
-        } finally {
-            process.write(affect.toString()).write("\n");
-            process.end();
+            process.end(1, e.getMessage() + ", visit " + LogUtil.loggingFile() + " for more detail");
         }
     }
 
@@ -392,22 +401,29 @@ public class TimeTunnelCommand extends EnhancerCommand {
 
             if (hasWatchExpress()) {
                 // 执行watchExpress
-                TableElement table = TimeTunnelTable.createDefaultTable();
-                TimeTunnelTable.drawWatchTableHeader(table);
-                TimeTunnelTable.drawWatchExpress(matchingTimeSegmentMap, table, watchExpress, isNeedExpand(), expand, sizeLimit);
-                process.write(RenderUtil.render(table, process.width()));
+                Map<Integer, ObjectVO> searchResults = new LinkedHashMap<Integer, ObjectVO>();
+                for (Map.Entry<Integer, TimeFragment> entry : matchingTimeSegmentMap.entrySet()) {
+                    Object value = ExpressFactory.threadLocalExpress(entry.getValue().getAdvice()).get(watchExpress);
+                    searchResults.put(entry.getKey(), new ObjectVO(value, expand));
+                }
+
+                TimeTunnelModel timeTunnelModel = new TimeTunnelModel()
+                        .setWatchResults(searchResults)
+                        .setExpand(expand)
+                        .setSizeLimit(sizeLimit);
+                process.appendResult(timeTunnelModel);
             } else {
                 // 单纯的列表格
-                process.write(RenderUtil.render(TimeTunnelTable.drawTimeTunnelTable(matchingTimeSegmentMap), process.width()));
+                List<TimeFragmentVO> timeFragmentList = createTimeTunnelVOList(matchingTimeSegmentMap);
+                process.appendResult(new TimeTunnelModel().setTimeFragmentList(timeFragmentList).setFirst(true));
             }
 
             affect.rCnt(matchingTimeSegmentMap.size());
+            process.appendResult(new RowAffectModel(affect));
+            process.end();
         } catch (ExpressException e) {
             logger.warn("tt failed.", e);
-            process.write(e.getMessage() + ", visit " + LogUtil.loggingFile() + " for more detail\n");
-        } finally {
-            process.write(affect.toString()).write("\n");
-            process.end();
+            process.end(1, e.getMessage() + ", visit " + LogUtil.loggingFile() + " for more detail");
         }
     }
 
@@ -417,8 +433,8 @@ public class TimeTunnelCommand extends EnhancerCommand {
         if (timeFragmentMap.remove(index) != null) {
             affect.rCnt(1);
         }
-        process.write(format("Time fragment[%d] successfully deleted.", index)).write("\n");
-        process.write(affect.toString()).write("\n");
+        process.appendResult(new MessageModel(format("Time fragment[%d] successfully deleted.", index)));
+        process.appendResult(new RowAffectModel(affect));
         process.end();
     }
 
@@ -426,17 +442,46 @@ public class TimeTunnelCommand extends EnhancerCommand {
         int count = timeFragmentMap.size();
         RowAffect affect = new RowAffect(count);
         timeFragmentMap.clear();
-        process.write("Time fragments are cleaned.\n");
-        process.write(affect.toString()).write("\n");
+        process.appendResult(new MessageModel("Time fragments are cleaned."));
+        process.appendResult(new RowAffectModel(affect));
         process.end();
     }
 
     private void processList(CommandProcess process) {
         RowAffect affect = new RowAffect();
-        process.write(RenderUtil.render(TimeTunnelTable.drawTimeTunnelTable(timeFragmentMap), process.width()));
+        List<TimeFragmentVO> timeFragmentList = createTimeTunnelVOList(timeFragmentMap);
+        process.appendResult(new TimeTunnelModel().setTimeFragmentList(timeFragmentList).setFirst(true));
         affect.rCnt(timeFragmentMap.size());
-        process.write(affect.toString()).write("\n");
+        process.appendResult(new RowAffectModel(affect));
         process.end();
+    }
+
+    private List<TimeFragmentVO> createTimeTunnelVOList(Map<Integer, TimeFragment> timeFragmentMap) {
+        List<TimeFragmentVO> timeFragmentList = new ArrayList<TimeFragmentVO>(timeFragmentMap.size());
+        for (Map.Entry<Integer, TimeFragment> entry : timeFragmentMap.entrySet()) {
+            timeFragmentList.add(createTimeFragmentVO(entry.getKey(), entry.getValue(), expand));
+        }
+        return timeFragmentList;
+    }
+
+    public static TimeFragmentVO createTimeFragmentVO(Integer index, TimeFragment tf, Integer expand) {
+        Advice advice = tf.getAdvice();
+        String object = advice.getTarget() == null
+                ? "NULL"
+                : "0x" + toHexString(advice.getTarget().hashCode());
+
+        return new TimeFragmentVO()
+                .setIndex(index)
+                .setTimestamp(tf.getGmtCreate())
+                .setCost(tf.getCost())
+                .setParams(ObjectVO.array(advice.getParams(), expand))
+                .setReturn(advice.isAfterReturning())
+                .setReturnObj(new ObjectVO(advice.getReturnObj(), expand))
+                .setThrow(advice.isAfterThrowing())
+                .setThrowExp(new ObjectVO(advice.getThrowExp(), expand))
+                .setObject(object)
+                .setClassName(advice.getClazz().getName())
+                .setMethodName(advice.getMethod().getName());
     }
 
     /**
@@ -445,14 +490,10 @@ public class TimeTunnelCommand extends EnhancerCommand {
     private void processPlay(CommandProcess process) {
         TimeFragment tf = timeFragmentMap.get(index);
         if (null == tf) {
-            process.write(format("Time fragment[%d] does not exist.", index) + "\n");
-            process.end();
+            process.end(1, format("Time fragment[%d] does not exist.", index));
             return;
         }
         Advice advice = tf.getAdvice();
-        String className = advice.getClazz().getName();
-        String methodName = advice.getMethod().getName();
-        String objectAddress = advice.getTarget() == null ? "NULL" : "0x" + toHexString(advice.getTarget().hashCode());
         ArthasMethod method = advice.getMethod();
         boolean accessible = advice.getMethod().isAccessible();
         try {
@@ -468,30 +509,44 @@ public class TimeTunnelCommand extends EnhancerCommand {
                     }
                 }
                 long beginTime = System.nanoTime();
-                TableElement table = TimeTunnelTable.createDefaultTable();
-                if (i != 0) {
-                    // empty line separator
-                    process.write("\n");
-                }
-                TimeTunnelTable.drawPlayHeader(className, methodName, objectAddress, index, table);
-                TimeTunnelTable.drawParameters(advice, table, isNeedExpand(), expand);
+
+                //copy from tt record
+                TimeFragmentVO replayResult = createTimeFragmentVO(index, tf, expand);
+                replayResult.setTimestamp(LocalDateTime.now())
+                        .setCost(0)
+                        .setReturn(false)
+                        .setReturnObj(null)
+                        .setThrow(false)
+                        .setThrowExp(null);
 
                 try {
+                    //execute successful
                     Object returnObj = method.invoke(advice.getTarget(), advice.getParams());
                     double cost = (System.nanoTime() - beginTime) / 1000000.0;
-                    TimeTunnelTable.drawPlayResult(table, returnObj, isNeedExpand(), expand, sizeLimit, cost);
+                    replayResult.setCost(cost)
+                            .setReturn(true)
+                            .setReturnObj(new ObjectVO(returnObj, expand));
                 } catch (Throwable t) {
-                    TimeTunnelTable.drawPlayException(table, t, isNeedExpand(), expand);
+                    //throw exp
+                    double cost = (System.nanoTime() - beginTime) / 1000000.0;
+                    replayResult.setCost(cost)
+                            .setThrow(true)
+                            .setThrowExp(new ObjectVO(t, expand));
                 }
-                process.write(RenderUtil.render(table, process.width()))
-                        .write(format("Time fragment[%d] successfully replayed %d times.", index, i+1))
-                        .write("\n");
+
+                TimeTunnelModel timeTunnelModel = new TimeTunnelModel()
+                        .setReplayResult(replayResult)
+                        .setReplayNo(i + 1)
+                        .setExpand(expand)
+                        .setSizeLimit(sizeLimit);
+                process.appendResult(timeTunnelModel);
             }
+            process.end();
         } catch (Throwable t) {
             logger.warn("tt replay failed.", t);
+            process.end(-1, "tt replay failed");
         } finally {
             method.setAccessible(accessible);
-            process.end();
         }
     }
 }

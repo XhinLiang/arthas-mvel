@@ -1,7 +1,7 @@
 package com.taobao.arthas.core.util;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.taobao.arthas.common.IOUtils;
 
 import java.io.BufferedReader;
@@ -22,6 +22,8 @@ public class NetUtils {
     private static final int QOS_PORT = 12201;
     private static final String QOS_RESPONSE_START_LINE = "pandora>[QOS Response]";
     private static final int INTERNAL_SERVER_ERROR = 500;
+    private static final int CONNECT_TIMEOUT = 1000;
+    private static final int READ_TIMEOUT = 3000;
 
     /**
      * This implementation is based on Apache HttpClient.
@@ -34,6 +36,8 @@ public class NetUtils {
         try {
             URL url = new URL(urlString);
             urlConnection = (HttpURLConnection)url.openConnection();
+            urlConnection.setConnectTimeout(CONNECT_TIMEOUT);
+            urlConnection.setReadTimeout(READ_TIMEOUT);;
             // prefer json to text
             urlConnection.setRequestProperty("Accept", "application/json,text/plain;q=0.2");
             in = urlConnection.getInputStream();
@@ -79,7 +83,7 @@ public class NetUtils {
             int responseCode = con.getResponseCode();
 
             br = new BufferedReader(new InputStreamReader(con.getInputStream()));
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
             String line = null;
             while ((line = br.readLine()) != null) {
                 sb.append(line);
@@ -134,7 +138,7 @@ public class NetUtils {
             pw.flush();
 
             br = new BufferedReader(new InputStreamReader(s.getInputStream()));
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
             String line = null;
             boolean start = false;
             while ((line = br.readLine()) != null) {

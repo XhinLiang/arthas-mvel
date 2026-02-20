@@ -25,7 +25,7 @@ public interface Constants {
 
     String WIKI = "\nWIKI:\n";
 
-    String WIKI_HOME = "  https://alibaba.github.io/arthas/";
+    String WIKI_HOME = "  https://arthas.aliyun.com/doc/";
 
     String EXPRESS_EXAMPLES =   "Examples:\n" +
                                 "  params\n" +
@@ -43,6 +43,7 @@ public interface Constants {
                                 "  TRUE  : true\n" +
                                 "  FALSE : false\n" +
                                 "  TRUE  : 'params.length>=0'\n" +
-                                "  FALSE : 1==2\n";
+                                "  FALSE : 1==2\n" +
+                                "  '#cost>100'\n";
 
 }

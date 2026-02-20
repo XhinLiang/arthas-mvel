@@ -24,6 +24,7 @@ if ["%~1"]==[""] (
   goto exit_bat
 )
 
+set JAVA_TOOL_OPTIONS
 set AGENT_JAR=%BASEDIR%\arthas-agent.jar
 set CORE_JAR=%BASEDIR%\arthas-core.jar
 
@@ -97,8 +98,6 @@ echo NB: JAVA_HOME should point to a JDK not a JRE.
 goto exit_bat
 
 :okJava
-set JAVACMD="%JAVA_HOME%"\bin\java
-
 %JAVACMD% -Dfile.encoding=UTF-8 %BOOT_CLASSPATH% -jar "%CORE_JAR%" -pid "%PID%"  -target-ip 127.0.0.1 -telnet-port %TELNET_PORT% -http-port %HTTP_PORT% -core "%CORE_JAR%" -agent "%AGENT_JAR%"
 if %ERRORLEVEL% NEQ 0 goto exit_bat
 if %exitProcess%==1 goto exit_bat
@@ -116,5 +115,5 @@ IF %ERRORLEVEL% NEQ 0 (
 )
 
 :exit_bat
-if %exitProcess%==1 exit %ERROR_CODE%
+if "%exitProcess%"=="1" exit %ERROR_CODE%
 exit /B %ERROR_CODE%

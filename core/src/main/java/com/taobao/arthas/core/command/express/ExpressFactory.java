@@ -1,6 +1,6 @@
 package com.taobao.arthas.core.command.express;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.lang.ref.WeakReference;
 
 /**
  * ExpressFactory
@@ -9,35 +9,34 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class ExpressFactory {
 
-    private static final ThreadLocal<Express> EXPRESS_REF = new ThreadLocal<Express>() {
-        @Override
-        protected Express initialValue() {
-            return new OgnlExpress();
-        }
-    };
-
-    private static final ConcurrentHashMap<String, MvelExpress> MVEL_EXPRESS = new ConcurrentHashMap<String, MvelExpress>();
+    /**
+     * 这里不能直接在 ThreadLocalMap 里强引用 Express（它由 ArthasClassLoader 加载），否则 stop/detach 后会被业务线程持有，
+     * 导致 ArthasClassLoader 无法被 GC 回收。
+     *
+     * 用 WeakReference 打断强引用链：Thread -> ThreadLocalMap -> value(WeakReference) -X-> Express。
+     */
+    private static final ThreadLocal<WeakReference<Express>> expressRef = ThreadLocal
+            .withInitial(() -> new WeakReference<Express>(new OgnlExpress()));
 
     /**
      * get ThreadLocal Express Object
-     * @param object obj
-     * @return express
+     * @param object
+     * @return
      */
     public static Express threadLocalExpress(Object object) {
-        return EXPRESS_REF.get().reset().bind(object);
+        WeakReference<Express> reference = expressRef.get();
+        Express express = reference == null ? null : reference.get();
+        if (express == null) {
+            express = new OgnlExpress();
+            expressRef.set(new WeakReference<Express>(express));
+        }
+        return express.reset().bind(object);
     }
 
     public static Express unpooledExpress(ClassLoader classloader) {
-        return new OgnlExpress(new ClassLoaderClassResolver(classloader));
-    }
-
-    public static synchronized Express mvelExpress(ClassLoader classloader) {
-        String classLoaderName = classloader.getClass().getName();
-        MvelExpress express = MVEL_EXPRESS.get(classLoaderName);
-        if (express == null) {
-            express = new MvelExpress(classloader);
-            MVEL_EXPRESS.put(classLoaderName, express);
+        if (classloader == null) {
+            classloader = ClassLoader.getSystemClassLoader();
         }
-        return express;
+        return new OgnlExpress(new ClassLoaderClassResolver(classloader));
     }
 }
