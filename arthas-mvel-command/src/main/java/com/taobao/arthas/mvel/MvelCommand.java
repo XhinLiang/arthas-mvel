@@ -1,16 +1,14 @@
-package com.taobao.arthas.core.command.klass100;
+package com.taobao.arthas.mvel;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.instrument.Instrumentation;
-
-import org.apache.commons.lang.exception.ExceptionUtils;
 
 import com.alibaba.arthas.deps.org.slf4j.Logger;
 import com.alibaba.arthas.deps.org.slf4j.LoggerFactory;
-import com.google.common.base.Joiner;
 import com.taobao.arthas.core.command.Constants;
 import com.taobao.arthas.core.command.express.Express;
 import com.taobao.arthas.core.command.express.ExpressException;
-import com.taobao.arthas.core.command.express.ExpressFactory;
 import com.taobao.arthas.core.shell.cli.CliToken;
 import com.taobao.arthas.core.shell.command.AnnotatedCommand;
 import com.taobao.arthas.core.shell.command.Command;
@@ -99,7 +97,7 @@ public class MvelCommand extends AnnotatedCommand {
 
 
             Thread.currentThread().setContextClassLoader(classLoader);
-            Express unpooledExpress = ExpressFactory.mvelExpress(classLoader);
+            Express unpooledExpress = MvelExpressFactory.mvelExpress(classLoader);
             try {
                 Object value = unpooledExpress.get(evalString);
                 String result = StringUtils.objectToString(expand >= 0 ? new ObjectView(value, expand).draw() : value);
@@ -117,8 +115,10 @@ public class MvelCommand extends AnnotatedCommand {
         }
     }
 
-    public static String exceptionToString(Exception e) {
-        return Joiner.on("\n").join(ExceptionUtils.getRootCauseStackTrace(e));
+    public static String exceptionToString(Throwable e) {
+        StringWriter sw = new StringWriter();
+        e.printStackTrace(new PrintWriter(sw));
+        return sw.toString();
     }
 
     private static ClassLoader findClassLoader(Instrumentation inst, String hashCode) {

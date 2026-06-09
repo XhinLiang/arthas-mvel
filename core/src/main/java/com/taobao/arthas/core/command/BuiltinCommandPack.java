@@ -15,7 +15,6 @@ import com.taobao.arthas.core.command.klass100.DumpClassCommand;
 import com.taobao.arthas.core.command.klass100.GetStaticCommand;
 import com.taobao.arthas.core.command.klass100.JadCommand;
 import com.taobao.arthas.core.command.klass100.MemoryCompilerCommand;
-import com.taobao.arthas.core.command.klass100.MvelCommand;
 import com.taobao.arthas.core.command.klass100.OgnlCommand;
 import com.taobao.arthas.core.command.klass100.RedefineCommand;
 import com.taobao.arthas.core.command.klass100.RetransformCommand;
@@ -81,7 +80,6 @@ public class BuiltinCommandPack implements CommandResolver {
         commandClassList.add(PerfCounterCommand.class);
         // commandClassList.add(GroovyScriptCommand.class);
         commandClassList.add(OgnlCommand.class);
-        commandClassList.add(MvelCommand.class);
         commandClassList.add(MemoryCompilerCommand.class);
         commandClassList.add(RedefineCommand.class);
         commandClassList.add(RetransformCommand.class);

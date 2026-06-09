@@ -54,6 +54,7 @@
         <module>web-ui</module>
         <module>math-game</module>
         <module>arthas-demo-external-command</module>
+        <module>arthas-mvel-command</module>
         <module>common</module>
         <module>arthas-model</module>
         <module>spy</module>
