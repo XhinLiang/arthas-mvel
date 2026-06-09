@@ -146,7 +146,7 @@ jobs:
 
   upload-libasyncProfiler-files:
     runs-on: ubuntu-20.04
-    needs: [build-mac, build-generic-linux-x64, build-generic-linux-arm64, build-alpine-linux-x64, build-alpine-linux-arm64]
+    needs: [build-mac, build-generic-linux-x64, build-generic-linux-arm64]
     steps:
       # 检出当前 arthas 代码仓库
       - name: Checkout arthas upstream repo
