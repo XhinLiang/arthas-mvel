@@ -8,10 +8,10 @@
 
 # program : Arthas
 #  author : Core Engine @ Taobao.com
-#    date : 2026-01-10
+#    date : 2026-06-04
 
 # current arthas script version
-ARTHAS_SCRIPT_VERSION=4.1.5
+ARTHAS_SCRIPT_VERSION=4.2.2
 
 # SYNOPSIS
 #   rreadlink <fileOrDirPath>
@@ -104,7 +104,7 @@ DEFAULT_TELNET_PORT="3658"
 HTTP_PORT=
 DEFAULT_HTTP_PORT="8563"
 
-# telnet session timeout seconds, default 1800
+# telnet session timeout seconds, default 10800
 SESSION_TIMEOUT=
 
 # use specify version
@@ -112,9 +112,6 @@ USE_VERSION=
 
 # remote repo to download arthas
 REPO_MIRROR=
-
-# use http to download arthas
-USE_HTTP=false
 
 # attach only, do not telnet connect
 ATTACH_ONLY=false
@@ -157,6 +154,8 @@ PASSWORD=
 
 # disabledCommands
 DISABLED_COMMANDS=
+# external command locations
+COMMAND_LOCATIONS=
 
 ############ Command Arguments ############
 
@@ -325,15 +324,6 @@ get_local_version()
     ls "${ARTHAS_LIB_DIR}" | sort | tail -1
 }
 
-get_repo_url()
-{
-    local repoUrl="${REPO_MIRROR}"
-    if [ "$USE_HTTP" = true ] ; then
-        repoUrl=${repoUrl/https/http}
-    fi
-    echo "${repoUrl}"
-}
-
 # get latest version from remote
 get_remote_version()
 {
@@ -368,7 +358,7 @@ update_if_necessary()
             || exit_on_err 1 "create ${temp_target_lib_dir} fail."
 
         # download current arthas version
-        local downloadUrl="${REMOTE_DOWNLOAD_URL//PLACEHOLDER_REPO/$(get_repo_url)}"
+        local downloadUrl="${REMOTE_DOWNLOAD_URL//PLACEHOLDER_REPO/${REPO_MIRROR}}"
         downloadUrl="${downloadUrl//PLACEHOLDER_VERSION/${update_version}}"
         echo "Download arthas from: ${downloadUrl}"
         curl \
@@ -433,7 +423,8 @@ Usage:
        [--app-name <value>]
        [--username <value>] [--password <value>]
        [--disabled-commands <value>]
-       [--use-version <value>] [--repo-mirror <value>] [--versions] [--use-http]
+       [--command-locations <value>]
+       [--use-version <value>] [--repo-mirror <value>] [--versions]
        [--attach-only] [-c <value>] [-f <value>] [-v] [pid]
 
 NOTE: Arthas 4 supports JDK 8+. If you need to diagnose applications running on JDK 6/7, you can use Arthas 3.
@@ -443,13 +434,12 @@ Options and Arguments:
     --target-ip <value>         The target jvm listen ip, default 127.0.0.1
     --telnet-port <value>       The target jvm listen telnet port, default 3658
     --http-port <value>         The target jvm listen http port, default 8563
-    --session-timeout <value>   The session timeout seconds, default 1800 (30min)
+    --session-timeout <value>   The session timeout seconds, default 10800 (3h)
     --arthas-home <value>       The arthas home
     --use-version <value>       Use special version arthas
     --repo-mirror <value>       Use special remote repository mirror, value is
                                 center/aliyun or http repo url.
     --versions                  List local and remote arthas versions
-    --use-http                  Enforce use http to download, default use https
     --attach-only               Attach target process only, do not connect
     --debug-attach              Debug attach agent
     --tunnel-server             Remote tunnel server url
@@ -458,6 +448,8 @@ Options and Arguments:
     --username                  Special username
     --password                  Special password
     --disabled-commands         Disable special commands
+    --command-locations         External command jar locations, support jar file or directory,
+                                separated by comma
     --select                    select target process by classname or JARfilename
  -c,--command <value>           Command to execute, multiple commands separated
                                 by ;
@@ -476,12 +468,13 @@ EXAMPLES:
   ./as.sh --stat-url 'http://192.168.10.11:8080/api/stat'
   ./as.sh -c 'sysprop; thread' <pid>
   ./as.sh -f batch.as <pid>
-  ./as.sh --use-version 4.1.5
+  ./as.sh --use-version 4.2.2
   ./as.sh --session-timeout 3600
   ./as.sh --attach-only
   ./as.sh --disabled-commands stop,dump
+  ./as.sh --command-locations '/opt/arthas/ext-command.jar,/opt/arthas/ext-commands'
   ./as.sh --select math-game
-  ./as.sh --repo-mirror aliyun --use-http
+  ./as.sh --repo-mirror aliyun
 WIKI:
   https://arthas.aliyun.com/doc
 
@@ -661,9 +654,10 @@ parse_arguments()
         shift # past argument
         shift # past value
         ;;
-        --use-http)
-        USE_HTTP=true
+        --command-locations)
+        COMMAND_LOCATIONS="$2"
         shift # past argument
+        shift # past value
         ;;
         --attach-only)
         ATTACH_ONLY=true
@@ -873,6 +867,10 @@ attach_jvm()
     if [ "${DISABLED_COMMANDS}" ]; then
         tempArgs+=("-disabled-commands")
         tempArgs+=("${DISABLED_COMMANDS}")
+    fi
+    if [ "${COMMAND_LOCATIONS}" ]; then
+        tempArgs+=("-command-locations")
+        tempArgs+=("${COMMAND_LOCATIONS}")
     fi
 
     if [ "${TARGET_IP}" ]; then

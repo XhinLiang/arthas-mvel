@@ -143,7 +143,7 @@ public class ProfilerCommand extends AnnotatedCommand {
 
     /**
      * how to collect C stack frames in addition to Java stack
-     * MODE is 'fp' (Frame Pointer), 'dwarf', 'lbr' (Last Branch Record) or 'no'
+     * MODE is 'fp' (Frame Pointer), 'dwarf', 'vm', 'vmx' or 'no'
      */
     private String cstack;
 
@@ -277,6 +277,8 @@ public class ProfilerCommand extends AnnotatedCommand {
                 profilerSoPath = "async-profiler/libasyncProfiler-linux-x64.so";
             }  else if (OSUtils.isArm64()) {
                 profilerSoPath = "async-profiler/libasyncProfiler-linux-arm64.so";
+            }  else if (OSUtils.isLoongArch64()) {
+                profilerSoPath = "async-profiler/libasyncProfiler-linux-loongarch64.so";
             }
         }
 
@@ -417,7 +419,7 @@ public class ProfilerCommand extends AnnotatedCommand {
     }
 
     @Option(longName = "cstack")
-    @Description("how to traverse C stack: fp|dwarf|lbr|no")
+    @Description("how to traverse C stack: fp|dwarf|vm|vmx|no")
     public void setCstack(String cstack) {
         this.cstack = cstack;
     }
@@ -588,11 +590,11 @@ public class ProfilerCommand extends AnnotatedCommand {
     }
 
     /**
-     * https://github.com/async-profiler/async-profiler/blob/v3.0/src/arguments.cpp#L131
+     * https://github.com/async-profiler/async-profiler/blob/v4.4/src/arguments.cpp
      */
     public enum ProfilerAction {
-        // start, resume, stop, dump, check, status, meminfo, list,
-        start, resume, stop, dump, check, status, meminfo, list,
+        // start, resume, stop, dump, status, meminfo, list,
+        start, resume, stop, dump, status, meminfo, list,
         version,
 
         load,
@@ -629,7 +631,7 @@ public class ProfilerCommand extends AnnotatedCommand {
         boolean markdown = isMarkdownFormat();
         // md 是 Arthas 侧的后处理格式，不应传递给 async-profiler（避免识别失败/输出到文件导致数据丢失等问题）
         boolean passFile = this.file != null;
-        if (markdown && (action == ProfilerAction.start || action == ProfilerAction.resume || action == ProfilerAction.check)) {
+        if (markdown && (action == ProfilerAction.start || action == ProfilerAction.resume)) {
             passFile = false;
         }
         if (passFile) {
@@ -826,10 +828,6 @@ public class ProfilerCommand extends AnnotatedCommand {
                 process.appendResult(profilerModel);
             } else if (ProfilerAction.resume.equals(profilerAction)) {
                 String executeArgs = executeArgs(ProfilerAction.resume);
-                String result = execute(asyncProfiler, executeArgs);
-                appendExecuteResult(process, result);
-            } else if (ProfilerAction.check.equals(profilerAction)) {
-                String executeArgs = executeArgs(ProfilerAction.check);
                 String result = execute(asyncProfiler, executeArgs);
                 appendExecuteResult(process, result);
             } else if (ProfilerAction.version.equals(profilerAction)) {

@@ -26,7 +26,6 @@ import javax.xml.parsers.ParserConfigurationException;
 import org.xml.sax.SAXException;
 
 import com.taobao.arthas.common.AnsiLog;
-import com.taobao.arthas.common.JavaVersionUtils;
 import com.taobao.arthas.common.SocketUtils;
 import com.taobao.arthas.common.UsageRender;
 import com.taobao.middleware.cli.CLI;
@@ -54,12 +53,13 @@ import com.taobao.middleware.cli.annotations.Summary;
                 + "  java -jar arthas-boot.jar --stat-url 'http://192.168.10.11:8080/api/stat'\n"
                 + "  java -jar arthas-boot.jar -c 'sysprop; thread' <pid>\n"
                 + "  java -jar arthas-boot.jar -f batch.as <pid>\n"
-                + "  java -jar arthas-boot.jar --use-version 4.1.5\n"
+                + "  java -jar arthas-boot.jar --use-version 4.2.2\n"
                 + "  java -jar arthas-boot.jar --versions\n"
                 + "  java -jar arthas-boot.jar --select math-game\n"
                 + "  java -jar arthas-boot.jar --session-timeout 3600\n" + "  java -jar arthas-boot.jar --attach-only\n"
                 + "  java -jar arthas-boot.jar --disabled-commands stop,dump\n"
-                + "  java -jar arthas-boot.jar --repo-mirror aliyun --use-http\n" + "WIKI:\n"
+                + "  java -jar arthas-boot.jar --command-locations '/opt/arthas/ext-command.jar,/opt/arthas/ext-commands'\n"
+                + "  java -jar arthas-boot.jar --repo-mirror aliyun\n" + "WIKI:\n"
                 + "  https://arthas.aliyun.com/doc\n")
 public class Bootstrap {
     private static final int DEFAULT_TELNET_PORT = 3658;
@@ -108,11 +108,6 @@ public class Bootstrap {
      */
     private String repoMirror;
 
-    /**
-     * enforce use http to download arthas. default use https
-     */
-    private boolean useHttp = false;
-
     private boolean attachOnly = false;
 
     private String command;
@@ -131,6 +126,7 @@ public class Bootstrap {
     private String select;
 
     private String disabledCommands;
+    private String commandLocations;
 
 	static {
         String arthasLibDirEnv = System.getenv("ARTHAS_LIB_DIR");
@@ -192,7 +188,7 @@ public class Bootstrap {
     }
 
     @Option(longName = "session-timeout")
-    @Description("The session timeout seconds, default 1800 (30min)")
+    @Description("The session timeout seconds, default 10800 (3h)")
     public void setSessionTimeout(Long sessionTimeout) {
         this.sessionTimeout = sessionTimeout;
     }
@@ -219,12 +215,6 @@ public class Bootstrap {
     @Description("List local and remote arthas versions")
     public void setVersions(boolean versions) {
         this.versions = versions;
-    }
-
-    @Option(longName = "use-http", flag = true)
-    @Description("Enforce use http to download, default use https")
-    public void setuseHttp(boolean useHttp) {
-        this.useHttp = useHttp;
     }
 
     @Option(longName = "attach-only", flag = true)
@@ -310,6 +300,12 @@ public class Bootstrap {
         this.disabledCommands = disabledCommands;
     }
 
+    @Option(longName = "command-locations")
+    @Description("external command jar locations, support jar file or directory, separated by comma")
+    public void setCommandLocations(String commandLocations) {
+        this.commandLocations = commandLocations;
+    }
+
     public static void main(String[] args) throws ParserConfigurationException, SAXException, IOException,
                     ClassNotFoundException, NoSuchMethodException, SecurityException, IllegalAccessException,
                     IllegalArgumentException, InvocationTargetException {
@@ -369,12 +365,6 @@ public class Bootstrap {
             System.exit(0);
         }
 
-        if (JavaVersionUtils.isJava6() || JavaVersionUtils.isJava7()) {
-            bootstrap.setuseHttp(true);
-            AnsiLog.debug("Java version is {}, only support http, set useHttp to true.",
-                            JavaVersionUtils.javaVersionStr());
-        }
-
         // check telnet/http port
         long telnetPortPid = -1;
         long httpPortPid = -1;
@@ -429,8 +419,8 @@ public class Bootstrap {
                             + File.separator + bootstrap.getUseVersion() + File.separator + "arthas");
             if (!specialVersionDir.exists()) {
                 // try to download arthas from remote server.
-                DownloadUtils.downArthasPackaging(bootstrap.getRepoMirror(), bootstrap.isUseHttp(),
-                                bootstrap.getUseVersion(), ARTHAS_LIB_DIR.getAbsolutePath());
+                DownloadUtils.downArthasPackaging(bootstrap.getRepoMirror(), bootstrap.getUseVersion(),
+                                ARTHAS_LIB_DIR.getAbsolutePath());
             }
             verifyArthasHome(specialVersionDir.getAbsolutePath());
             arthasHomeDir = specialVersionDir;
@@ -500,8 +490,8 @@ public class Bootstrap {
             }
             if (needDownload) {
                 // try to download arthas from remote server.
-                DownloadUtils.downArthasPackaging(bootstrap.getRepoMirror(), bootstrap.isUseHttp(),
-                        remoteLatestVersion, ARTHAS_LIB_DIR.getAbsolutePath());
+                DownloadUtils.downArthasPackaging(bootstrap.getRepoMirror(), remoteLatestVersion,
+                        ARTHAS_LIB_DIR.getAbsolutePath());
                 localLatestVersion = remoteLatestVersion;
             }
 
@@ -583,6 +573,10 @@ public class Bootstrap {
                 if (bootstrap.getDisabledCommands() != null) {
                     attachArgs.add("-disabled-commands");
                     attachArgs.add(bootstrap.getDisabledCommands());
+                }
+                if (bootstrap.getCommandLocations() != null) {
+                    attachArgs.add("-command-locations");
+                    attachArgs.add(bootstrap.getCommandLocations());
                 }
 
                 AnsiLog.info("Try to attach process " + pid);
@@ -785,10 +779,6 @@ public class Bootstrap {
         return repoMirror;
     }
 
-    public boolean isUseHttp() {
-        return useHttp;
-    }
-
     public String getTargetIp() {
         return targetIp;
     }
@@ -895,5 +885,9 @@ public class Bootstrap {
 
     public String getDisabledCommands() {
         return disabledCommands;
+    }
+
+    public String getCommandLocations() {
+        return commandLocations;
     }
 }

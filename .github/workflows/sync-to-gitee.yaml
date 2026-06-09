@@ -1,10 +1,11 @@
 name: Sync to Gitee
 
 on:
-  push:
-    branches:
-      - master
-      - gh-pages
+  # Disabled for this fork: this job mirrors github/alibaba -> gitee/arthas and
+  # requires GITEE_PRIVATE_KEY / GITEE_TOKEN secrets that only Alibaba owns, so
+  # it can only ever fail here. Kept as manual-only (workflow_dispatch) instead
+  # of auto-running on every push. Re-add the `push:` trigger to restore.
+  workflow_dispatch:
 
 jobs:
   sync:

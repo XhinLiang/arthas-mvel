@@ -18,11 +18,13 @@ arthas.httpPort=8563
 arthas.ip=127.0.0.1
 
 # seconds
-arthas.sessionTimeout=1800
+arthas.sessionTimeout=10800
 
 #arthas.appName=demoapp
 #arthas.tunnelServer=ws://127.0.0.1:7777/ws
 #arthas.agentId=mmmmmmyiddddd
+#arthas.commandLocations=/opt/arthas/ext-command.jar,/opt/arthas/ext-commands
+# Arthas will also try to load *.jar from ${arthas.home}/commands if the directory exists
 ```
 
 - If the configuration of `arthas.telnetPort` is -1, the telnet port will not be listened. `arthas.httpPort` is similar.
@@ -49,6 +51,25 @@ It can also be configured on the command line: `--disabled-commands stop,dump`.
 ::: tip
 By default, arthas-spring-boot-starter will disable the `stop` command.
 :::
+
+### Load external commands
+
+You can load external command jars when Arthas starts:
+
+```
+arthas.commandLocations=/opt/arthas/ext-command.jar,/opt/arthas/ext-commands
+```
+
+- Each entry can be a jar file path or a directory path, separated by commas.
+- Directory entries only scan `*.jar` in the current directory and do not recurse.
+- If `${arthas.home}/commands` exists, Arthas also tries to load `*.jar` from that directory at startup. Explicit `arthas.commandLocations` are loaded first, then the default directory.
+- The external jar should expose a `CommandResolver` via `META-INF/services/com.taobao.arthas.core.shell.command.CommandResolver`.
+- Arthas keeps built-in commands first; when an external command conflicts with a built-in command name, the external command is skipped and a log is written.
+
+It can also be configured on the command line:
+`--command-locations '/opt/arthas/ext-command.jar,/opt/arthas/ext-commands'`.
+
+For a complete external command development and loading example, see [Load External Commands](external-command.md).
 
 ## Configured order
 

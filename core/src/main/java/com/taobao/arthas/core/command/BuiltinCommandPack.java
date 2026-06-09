@@ -10,10 +10,12 @@ import com.taobao.arthas.core.command.basic1000.*;
 import com.taobao.arthas.core.command.hidden.JulyCommand;
 import com.taobao.arthas.core.command.hidden.ThanksCommand;
 import com.taobao.arthas.core.command.klass100.ClassLoaderCommand;
+import com.taobao.arthas.core.command.klass100.ClassLoaderMetaspaceCommand;
 import com.taobao.arthas.core.command.klass100.DumpClassCommand;
 import com.taobao.arthas.core.command.klass100.GetStaticCommand;
 import com.taobao.arthas.core.command.klass100.JadCommand;
 import com.taobao.arthas.core.command.klass100.MemoryCompilerCommand;
+import com.taobao.arthas.core.command.klass100.MvelCommand;
 import com.taobao.arthas.core.command.klass100.OgnlCommand;
 import com.taobao.arthas.core.command.klass100.RedefineCommand;
 import com.taobao.arthas.core.command.klass100.RetransformCommand;
@@ -23,6 +25,7 @@ import com.taobao.arthas.core.command.logger.LoggerCommand;
 import com.taobao.arthas.core.command.monitor200.DashboardCommand;
 import com.taobao.arthas.core.command.monitor200.HeapDumpCommand;
 import com.taobao.arthas.core.command.monitor200.JvmCommand;
+import com.taobao.arthas.core.command.monitor200.LineCommand;
 import com.taobao.arthas.core.command.monitor200.MBeanCommand;
 import com.taobao.arthas.core.command.monitor200.MemoryCommand;
 import com.taobao.arthas.core.command.monitor200.MonitorCommand;
@@ -71,12 +74,14 @@ public class BuiltinCommandPack implements CommandResolver {
         commandClassList.add(ThreadCommand.class);
         commandClassList.add(TraceCommand.class);
         commandClassList.add(WatchCommand.class);
+        commandClassList.add(LineCommand.class);
         commandClassList.add(TimeTunnelCommand.class);
         commandClassList.add(JvmCommand.class);
         commandClassList.add(MemoryCommand.class);
         commandClassList.add(PerfCounterCommand.class);
         // commandClassList.add(GroovyScriptCommand.class);
         commandClassList.add(OgnlCommand.class);
+        commandClassList.add(MvelCommand.class);
         commandClassList.add(MemoryCompilerCommand.class);
         commandClassList.add(RedefineCommand.class);
         commandClassList.add(RetransformCommand.class);
@@ -107,6 +112,7 @@ public class BuiltinCommandPack implements CommandResolver {
         commandClassList.add(StopCommand.class);
         try {
             if (ClassLoader.getSystemClassLoader().getResource("jdk/jfr/Recording.class") != null) {
+                commandClassList.add(ClassLoaderMetaspaceCommand.class);
                 commandClassList.add(JFRCommand.class);
             }
         } catch (Throwable e) {

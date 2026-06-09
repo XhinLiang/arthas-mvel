@@ -1,6 +1,7 @@
 package com.taobao.arthas.core.command.express;
 
 import java.lang.ref.WeakReference;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * ExpressFactory
@@ -17,6 +18,11 @@ public class ExpressFactory {
      */
     private static final ThreadLocal<WeakReference<Express>> expressRef = ThreadLocal
             .withInitial(() -> new WeakReference<Express>(new OgnlExpress()));
+
+    /**
+     * arthas-mvel fork: cache of {@link MvelExpress} per target ClassLoader, used by the {@code mvel} command.
+     */
+    private static final ConcurrentHashMap<String, MvelExpress> MVEL_EXPRESS = new ConcurrentHashMap<String, MvelExpress>();
 
     /**
      * get ThreadLocal Express Object
@@ -38,5 +44,15 @@ public class ExpressFactory {
             classloader = ClassLoader.getSystemClassLoader();
         }
         return new OgnlExpress(new ClassLoaderClassResolver(classloader));
+    }
+
+    public static synchronized Express mvelExpress(ClassLoader classloader) {
+        String classLoaderName = classloader.getClass().getName();
+        MvelExpress express = MVEL_EXPRESS.get(classLoaderName);
+        if (express == null) {
+            express = new MvelExpress(classloader);
+            MVEL_EXPRESS.put(classLoaderName, express);
+        }
+        return express;
     }
 }
