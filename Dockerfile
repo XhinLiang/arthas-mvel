@@ -1,6 +1,6 @@
-FROM openjdk:8-jdk-alpine
+FROM eclipse-temurin:8-jdk-alpine
 
-ARG ARTHAS_VERSION="4.1.5"
+ARG ARTHAS_VERSION="4.2.2"
 ARG MIRROR=false
 
 ENV MAVEN_HOST=https://repo1.maven.org/maven2 \

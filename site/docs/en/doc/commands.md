@@ -20,6 +20,7 @@
 ## class/classloader - related
 
 - [classloader](classloader.md) - check the inheritance structure, urls, class loading info for the specified class; using classloader to get the url of the resource e.g. `java/lang/String.class`
+- [classloader-metaspace](classloader-metaspace.md) - show metaspace / class metadata memory by ClassLoader instance
 - [dump](dump.md) - dump the loaded classes in byte code to the specified location
 - [jad](jad.md) - decompile the specified loaded classes
 - [mc](mc.md) - Memory compiler, compiles `.java` files into `.class` files in memory
@@ -35,6 +36,7 @@
 :::
 
 - [monitor](monitor.md) - monitor method execution statistics
+- [line](line.md) - watch arguments, local variables, and expression results at specified source lines
 - [stack](stack.md) - display the stack trace for the specified class and method
 - [trace](trace.md) - trace the execution time of specified method invocation
 - [tt](tt.md) - time tunnel, record the arguments and returned value for the methods and replay
@@ -52,6 +54,10 @@
 ## options
 
 - [options](options.md) - check/set Arthas global optionss
+
+## Extension commands
+
+- [Load external commands](external-command.md) - load custom Arthas commands from external jars at startup
 
 ## pipe
 

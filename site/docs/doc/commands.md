@@ -20,6 +20,7 @@
 ## class/classloader 相关
 
 - [classloader](classloader.md) - 查看 classloader 的继承树，urls，类加载信息，使用 classloader 去 getResource
+- [classloader-metaspace](classloader-metaspace.md) - 按 ClassLoader 实例统计 metaspace / class metadata 内存
 - [dump](dump.md) - dump 已加载类的 byte code 到特定目录
 - [jad](jad.md) - 反编译指定已加载类的源码
 - [mc](mc.md) - 内存编译器，内存编译`.java`文件为`.class`文件
@@ -35,6 +36,7 @@
 :::
 
 - [monitor](monitor.md) - 方法执行监控
+- [line](line.md) - 观察指定源码行的入参、局部变量和表达式结果
 - [stack](stack.md) - 输出当前方法被调用的调用路径
 - [trace](trace.md) - 方法内部调用路径，并输出方法路径上的每个节点上耗时
 - [tt](tt.md) - 方法执行数据的时空隧道，记录下指定方法每次调用的入参和返回信息，并能对这些不同的时间下调用进行观测
@@ -52,6 +54,10 @@
 ## options
 
 - [options](options.md) - 查看或设置 Arthas 全局开关
+
+## 扩展命令
+
+- [加载外部命令](external-command.md) - 启动时从外部 jar 加载自定义 Arthas 命令
 
 ## 管道
 

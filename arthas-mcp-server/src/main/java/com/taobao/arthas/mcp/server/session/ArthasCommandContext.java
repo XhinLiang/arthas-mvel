@@ -146,19 +146,29 @@ public class ArthasCommandContext {
      * Interrupt the current job
      */
     public Map<String, Object> interruptJob() {
-        requireSessionSupport();
-        return commandExecutor.interruptJob(binding.getArthasSessionId());
+        if (binding != null) {
+            return commandExecutor.interruptJob(binding.getArthasSessionId());
+        }
+        return null;
     }
 
-    /**
-     * Set session userId for statistics reporting
-     *
-     * @param userId 用户 ID
-     */
     public void setSessionUserId(String userId) {
         if (binding != null && userId != null) {
             commandExecutor.setSessionUserId(binding.getArthasSessionId(), userId);
             logger.debug("Set userId for session {}: {}", binding.getArthasSessionId(), userId);
+        }
+    }
+
+    /**
+     * 将已认证主体写入当前绑定的 Arthas session。
+     *
+     * @param authSubject 认证主体
+     */
+    public void setSessionAuth(Object authSubject) {
+        if (binding != null && authSubject != null) {
+            commandExecutor.setSessionAuth(binding.getArthasSessionId(), authSubject);
+            logger.debug("Set auth subject for session {}: {}",
+                    binding.getArthasSessionId(), authSubject.getClass().getSimpleName());
         }
     }
 }

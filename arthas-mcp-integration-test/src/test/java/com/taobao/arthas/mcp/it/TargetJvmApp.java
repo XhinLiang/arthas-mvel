@@ -14,11 +14,11 @@ public class TargetJvmApp {
     private int compute(int value) {
         return value * 2;
     }
-
     public static void main(String[] args) throws Exception {
         System.out.println("TargetJvmApp started.");
         while (true) {
-            INSTANCE.hotMethod((int) (System.nanoTime() & 0xFF));
+            int value = (int) (System.nanoTime() & 0xFF);
+            INSTANCE.hotMethod(value);
             Thread.sleep(50);
         }
     }

@@ -111,20 +111,16 @@ public class AdviceListenerManager {
             return className + owner + methodName + methodDesc;
         }
 
+        private String keyForLine(String className, String methodName, String methodDesc, int lineNumber) {
+            return className + methodName + methodDesc + "#" + lineNumber;
+        }
+
         public void registerAdviceListener(String className, String methodName, String methodDesc,
                 AdviceListener listener) {
             synchronized (this) {
                 className = className.replace('/', '.');
                 String key = key(className, methodName, methodDesc);
-
-                List<AdviceListener> listeners = map.get(key);
-                if (listeners == null) {
-                    listeners = new ArrayList<AdviceListener>();
-                    map.put(key, listeners);
-                }
-                if (!listeners.contains(listener)) {
-                    listeners.add(listener);
-                }
+                registerListener(key, listener);
             }
         }
 
@@ -142,22 +138,46 @@ public class AdviceListenerManager {
             synchronized (this) {
                 className = className.replace('/', '.');
                 String key = keyForTrace(className, owner, methodName, methodDesc);
-
-                List<AdviceListener> listeners = map.get(key);
-                if (listeners == null) {
-                    listeners = new ArrayList<AdviceListener>();
-                    map.put(key, listeners);
-                }
-                if (!listeners.contains(listener)) {
-                    listeners.add(listener);
-                }
+                registerListener(key, listener);
             }
+        }
+
+        private void registerListener(String key, AdviceListener listener) {
+            List<AdviceListener> listeners = map.get(key);
+            if (listeners != null && listeners.contains(listener)) {
+                return;
+            }
+
+            List<AdviceListener> newListeners = listeners == null
+                    ? new ArrayList<AdviceListener>()
+                    : new ArrayList<AdviceListener>(listeners);
+            newListeners.add(listener);
+            map.put(key, newListeners);
         }
 
         public List<AdviceListener> queryTraceAdviceListeners(String className, String owner, String methodName,
                 String methodDesc) {
             className = className.replace('/', '.');
             String key = keyForTrace(className, owner, methodName, methodDesc);
+
+            List<AdviceListener> listeners = map.get(key);
+
+            return listeners;
+        }
+
+        public void registerLineAdviceListener(String className, String methodName, String methodDesc, int lineNumber,
+                AdviceListener listener) {
+            synchronized (this) {
+                className = className.replace('/', '.');
+                String key = keyForLine(className, methodName, methodDesc, lineNumber);
+                registerListener(key, listener);
+            }
+        }
+
+        public List<AdviceListener> queryLineAdviceListeners(String className, String methodName, String methodDesc,
+                int lineNumber) {
+            className = className.replace('/', '.');
+            String key = keyForLine(className, methodName, methodDesc, lineNumber);
 
             List<AdviceListener> listeners = map.get(key);
 
@@ -221,6 +241,36 @@ public class AdviceListenerManager {
 
         if (manager != null) {
             return manager.queryTraceAdviceListeners(className, owner, methodName, methodDesc);
+        }
+
+        return null;
+    }
+
+    public static void registerLineAdviceListener(ClassLoader classLoader, String className, String methodName,
+            String methodDesc, int lineNumber, AdviceListener listener) {
+        classLoader = wrap(classLoader);
+        className = className.replace('/', '.');
+
+        logger.info("registerLineAdviceListener: classLoader={}, className={}, methodName={}, methodDesc={}, lineNumber={}, listener={}",
+                classLoader, className, methodName, methodDesc, lineNumber, listener.id());
+
+        ClassLoaderAdviceListenerManager manager = adviceListenerMap.get(classLoader);
+
+        if (manager == null) {
+            manager = new ClassLoaderAdviceListenerManager();
+            adviceListenerMap.put(classLoader, manager);
+        }
+        manager.registerLineAdviceListener(className, methodName, methodDesc, lineNumber, listener);
+    }
+
+    public static List<AdviceListener> queryLineAdviceListeners(ClassLoader classLoader, String className,
+            String methodName, String methodDesc, int lineNumber) {
+        classLoader = wrap(classLoader);
+        className = className.replace('/', '.');
+        ClassLoaderAdviceListenerManager manager = adviceListenerMap.get(classLoader);
+
+        if (manager != null) {
+            return manager.queryLineAdviceListeners(className, methodName, methodDesc, lineNumber);
         }
 
         return null;

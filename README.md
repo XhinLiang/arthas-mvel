@@ -6,8 +6,8 @@
 [![download](https://img.shields.io/github/downloads/alibaba/arthas/total?label=Downloads)](https://github.com/alibaba/arthas/releases/latest)
 [![maven](https://img.shields.io/maven-central/v/com.taobao.arthas/arthas-packaging.svg)](https://search.maven.org/search?q=g:com.taobao.arthas)
 ![license](https://img.shields.io/github/license/alibaba/arthas.svg)
-[![Average time to resolve an issue](http://isitmaintained.com/badge/resolution/alibaba/arthas.svg)](http://isitmaintained.com/project/alibaba/arthas "Average time to resolve an issue")
-[![Percentage of issues still open](http://isitmaintained.com/badge/open/alibaba/arthas.svg)](http://isitmaintained.com/project/alibaba/arthas "Percentage of issues still open")
+[![Average time to resolve an issue](https://isitmaintained.com/badge/resolution/alibaba/arthas.svg)](https://isitmaintained.com/project/alibaba/arthas "Average time to resolve an issue")
+[![Percentage of issues still open](https://isitmaintained.com/badge/open/alibaba/arthas.svg)](https://isitmaintained.com/project/alibaba/arthas "Percentage of issues still open")
 [![Leaderboard](https://img.shields.io/badge/Arthas-Check%20Your%20Contribution-orange)](https://opensource.alibaba.com/contribution_leaderboard/details?projectValue=arthas)
 
 `Arthas` is a Java Diagnostic tool open sourced by Alibaba.
@@ -40,7 +40,7 @@ Arthas was built to solve these issues. A developer can troubleshoot your produc
 * Supports telnet and websocket, which enables both local and remote diagnostics with command line and browsers.
 * Supports profiler/Flame Graph
 * Support get objects in the heap that are instances of the specified class. 
-* Supports JDK 6+ (version 4.x no longer supports JDK 6 and JDK 7).
+* Supports JDK 8+ in version 4.x, including JDK 17, JDK 21, and JDK 25.
 * Supports Linux/Mac/Windows.
 
 

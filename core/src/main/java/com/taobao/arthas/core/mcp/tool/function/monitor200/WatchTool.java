@@ -1,6 +1,7 @@
 package com.taobao.arthas.core.mcp.tool.function.monitor200;
 
 import com.taobao.arthas.core.mcp.tool.function.AbstractArthasTool;
+import com.taobao.arthas.mcp.server.protocol.spec.McpSchema;
 import com.taobao.arthas.mcp.server.tool.ToolContext;
 import com.taobao.arthas.mcp.server.tool.annotation.Tool;
 import com.taobao.arthas.mcp.server.tool.annotation.ToolParam;
@@ -21,7 +22,8 @@ public class WatchTool extends AbstractArthasTool {
     @Tool(
         name = "watch",
         description = "Watch 方法执行观察工具: 观察指定方法的调用情况，包括入参、返回值和抛出异常等信息，支持实时流式输出。对应 Arthas 的 watch 命令。",
-        streamable = true
+        streamable = true,
+        taskSupport = McpSchema.TaskSupportMode.OPTIONAL
     )
     public String watch(
             @ToolParam(description = "类名表达式匹配，支持通配符，如demo.MathGame")
@@ -57,6 +59,9 @@ public class WatchTool extends AbstractArthasTool {
             @ToolParam(description = "指定输出结果的属性遍历深度，默认1，最大4", required = false)
             Integer expandLevel,
 
+            @ToolParam(description = "输出结果大小上限(字节)。对应 watch -M/--sizeLimit，默认 10 * 1024 * 1024", required = false)
+            Integer sizeLimit,
+
             @ToolParam(description = "命令执行超时时间，单位为秒，默认" + AbstractArthasTool.DEFAULT_TIMEOUT_SECONDS +  "秒。超时后命令自动退出", required = false)
             Integer timeout,
 
@@ -74,6 +79,9 @@ public class WatchTool extends AbstractArthasTool {
         cmd.append(" -n ").append(execCount);
         cmd.append(" -m ").append(maxMatch);
         cmd.append(" -x ").append(expandDepth);
+        if (sizeLimit != null && sizeLimit > 0) {
+            cmd.append(" -M ").append(sizeLimit);
+        }
 
         addFlag(cmd, "-E", regex);
 
