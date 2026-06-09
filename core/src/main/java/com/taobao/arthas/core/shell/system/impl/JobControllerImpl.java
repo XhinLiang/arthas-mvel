@@ -2,9 +2,11 @@ package com.taobao.arthas.core.shell.system.impl;
 
 import com.taobao.arthas.common.ArthasConstants;
 import com.taobao.arthas.core.GlobalOptions;
+import com.taobao.arthas.core.command.klass100.MvelCommand;
 import com.taobao.arthas.core.distribution.ResultDistributor;
 import com.taobao.arthas.core.server.ArthasBootstrap;
 import com.taobao.arthas.core.shell.cli.CliToken;
+import com.taobao.arthas.core.shell.cli.impl.CliTokenImpl;
 import com.taobao.arthas.core.shell.command.Command;
 import com.taobao.arthas.core.shell.command.internal.RedirectHandler;
 import com.taobao.arthas.core.shell.command.internal.StdoutHandler;
@@ -146,6 +148,12 @@ public class JobControllerImpl implements JobController {
     private Process createProcess(Session session, List<CliToken> line, InternalCommandManager commandManager, int jobId, Term term, ResultDistributor resultDistributor) {
         try {
             ListIterator<CliToken> tokens = line.listIterator();
+            StringBuilder sb = new StringBuilder();
+            for (CliToken cliToken : line) {
+                sb.append(cliToken.raw());
+            }
+            String rawLine = sb.toString();
+
             while (tokens.hasNext()) {
                 CliToken token = tokens.next();
                 if (token.isText()) {
@@ -155,7 +163,10 @@ public class JobControllerImpl implements JobController {
                     if (command != null) {
                         return createCommandProcess(command, tokens, jobId, term, resultDistributor);
                     } else {
-                        throw new IllegalArgumentException(token.value() + ": command not found");
+                        // arthas-mvel fork: an unknown command is evaluated as an MVEL expression
+                        Command mvelCommand = MvelCommand.getInstance();
+                        CliToken mvelToken = new CliTokenImpl(true, rawLine, rawLine);
+                        return createMvelCommandProcess(mvelCommand, mvelToken, term, resultDistributor);
                     }
                 }
             }
@@ -163,6 +174,23 @@ public class JobControllerImpl implements JobController {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private Process createMvelCommandProcess(Command command, CliToken remainingToken, Term term, ResultDistributor resultDistributor) {
+        List<CliToken> remaining = new ArrayList<CliToken>();
+        List<CliToken> pipelineTokens = new ArrayList<CliToken>();
+        List<Function<String, String>> stdoutHandlerChain = new ArrayList<Function<String, String>>();
+        remaining.add(remainingToken);
+
+        injectHandler(stdoutHandlerChain, pipelineTokens);
+        stdoutHandlerChain.add(new TermHandler(term));
+        if (GlobalOptions.isSaveResult) {
+            stdoutHandlerChain.add(new RedirectHandler());
+        }
+        ProcessOutput processOutput = new ProcessOutput(stdoutHandlerChain, null, term);
+        ProcessImpl process = new ProcessImpl(command, remaining, command.processHandler(), processOutput, resultDistributor);
+        process.setTty(term);
+        return process;
     }
 
     private boolean runInBackground(List<CliToken> tokens) {
