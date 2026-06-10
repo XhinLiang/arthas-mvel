@@ -22,7 +22,17 @@ The command is packaged as a standard Arthas **external command** (`arthas-mvel-
 
 ## Quick start
 
-### Option A — download the full distribution (Arthas + mvel built in)
+### Option A — single self-contained jar (Recommended)
+
+Download just **`arthas-mvel.jar`** from the [latest release](https://github.com/XhinLiang/arthas-mvel/releases) and run it — no unzip, no extra files, works offline:
+
+```bash
+java -jar arthas-mvel.jar <pid>
+```
+
+On first run it extracts the bundled Arthas (including the `mvel` command) to `~/.arthas-mvel/<version>/` and attaches; subsequent runs reuse it. This is the whole distribution packaged into one file.
+
+### Option B — the full distribution
 
 Download `arthas-bin.zip` from the [latest release](https://github.com/XhinLiang/arthas-mvel/releases), unzip, and attach to your Java process:
 
@@ -33,7 +43,7 @@ unzip arthas-bin.zip -d arthas-mvel && cd arthas-mvel
 
 The `mvel` command is bundled in the distribution's `commands/` directory and loads automatically.
 
-### Option B — add `mvel` to an existing Arthas install
+### Option C — add `mvel` to an existing Arthas install
 
 Grab `arthas-mvel-command.jar` from the [latest release](https://github.com/XhinLiang/arthas-mvel/releases) and either drop it into your Arthas home `commands/` directory, or point Arthas at it on startup:
 
@@ -71,7 +81,7 @@ Requires JDK 8+ (`JAVA_HOME` must be set — the native `arthas-vmtool` module n
 ./mvnw -V -ntp clean install -P full
 ```
 
-The build produces `packaging/target/arthas-bin.zip` (full distribution) and `arthas-mvel-command/target/arthas-mvel-command-shade.jar` (the standalone command jar). See [FORK.md](FORK.md) for build/test notes (e.g. the MCP integration tests need a local `telnet`).
+The build produces `packaging/target/arthas-bin.zip` (full distribution), `arthas-mvel-launcher/target/arthas-mvel.jar` (the single self-contained launcher), and `arthas-mvel-command/target/arthas-mvel-command-shade.jar` (the standalone command jar). See [FORK.md](FORK.md) for build/test notes (e.g. the MCP integration tests need a local `telnet`).
 
 ## Relationship to upstream & credits
 
