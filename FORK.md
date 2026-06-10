@@ -34,6 +34,10 @@ Classes (package `com.taobao.arthas.mvel`): `MvelCommand`, `MvelCommandResolver`
 
 > Note: the command no longer needs `guava`/`commons-lang` — `exceptionToString` was
 > rewritten with the JDK only, so `mvel2` is the sole third-party runtime dependency.
+>
+> `mvel2` must stay on **2.5.x or newer**: 2.4.x references `java.lang.Compiler` (removed
+> from the JDK) and fails with `NoClassDefFoundError: java/lang/Compiler` on JDK 22+.
+> `MvelExpressTest` guards this across the JavaCI JDK matrix (8–25).
 
 ### 2. & 3. The two core patches
 
