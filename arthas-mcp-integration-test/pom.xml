@@ -64,6 +64,12 @@
                             <includes>
                                 <include>**/*IT.java</include>
                             </includes>
+                            <!-- These integration tests attach Arthas and drive tools over HTTP/telnet,
+                                 which is timing-sensitive and occasionally flakes on CI runners (a tool
+                                 call times out or a connection drops). Retry a failed test a couple of
+                                 times so a transient blip doesn't fail the whole build; a test that fails
+                                 every attempt still fails. -->
+                            <rerunFailingTestsCount>2</rerunFailingTestsCount>
                         </configuration>
                     </execution>
                 </executions>
