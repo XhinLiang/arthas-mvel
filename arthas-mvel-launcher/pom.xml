@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.taobao.arthas</groupId>
+        <artifactId>arthas-all</artifactId>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>arthas-mvel-launcher</artifactId>
+    <name>arthas-mvel-launcher</name>
+    <url>https://github.com/xhinliang/arthas-mvel</url>
+    <description>
+        arthas-mvel fork: a single self-extracting jar (arthas-mvel.jar). It bundles the whole
+        Arthas distribution (including the mvel command) and extracts it on first run, so a user
+        only needs this one file to run `java -jar arthas-mvel.jar &lt;pid&gt;`.
+    </description>
+
+    <dependencies>
+        <!-- provides com.taobao.arthas.boot.Bootstrap (+ cli, arthas-common transitively),
+             which the launcher delegates to after extracting the bundled distribution. -->
+        <dependency>
+            <groupId>com.taobao.arthas</groupId>
+            <artifactId>arthas-boot</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- not used at compile time; declared so this module builds AFTER arthas-packaging,
+             whose target/arthas-bin directory is embedded into the jar below. -->
+        <dependency>
+            <groupId>com.taobao.arthas</groupId>
+            <artifactId>arthas-packaging</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>arthas-mvel-launcher</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <plugins>
+            <!-- Embed the built distribution (packaging/target/arthas-bin) into this jar under
+                 arthas-home/, so the launcher can self-extract it at runtime. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>embed-arthas-home</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <copy todir="${project.build.outputDirectory}/arthas-home" overwrite="true">
+                                    <fileset dir="${project.basedir}/../packaging/target/arthas-bin"/>
+                                </copy>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Produce the single runnable arthas-mvel.jar: launcher class + Bootstrap (+ deps)
+                 + the embedded arthas-home/ resources. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>arthas-mvel</finalName>
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <transformers>
+                                <transformer
+                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>com.taobao.arthas.mvel.launcher.ArthasMvelLauncher</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

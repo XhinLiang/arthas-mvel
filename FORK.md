@@ -28,6 +28,17 @@ distribution's default `commands/` directory, so `mvel` is auto-loaded at startu
 (see upstream's `site/docs/doc/external-command.md`). It can also be loaded ad hoc with
 `--command-locations /path/to/arthas-mvel-command.jar`.
 
+### Single self-contained launcher — `arthas-mvel-launcher/`
+
+Module `arthas-mvel-launcher/` produces **`arthas-mvel.jar`**: a self-extracting fat jar so a
+user needs only this one file to run `java -jar arthas-mvel.jar <pid>` (offline, no extra
+downloads). It embeds the whole `packaging/target/arthas-bin` distribution under the jar's
+`arthas-home/` prefix (via an antrun copy at `prepare-package`) plus `arthas-boot`'s
+`Bootstrap` (shaded in). At runtime `ArthasMvelLauncher` extracts `arthas-home/` to
+`~/.arthas-mvel/<version>/arthas` on first run (idempotent — skips if `arthas-core.jar` is
+already there) and calls `Bootstrap.main` with `--arthas-home`. It builds after `arthas-packaging`
+(declared as a `provided` dependency to order the reactor).
+
 Classes (package `com.taobao.arthas.mvel`): `MvelCommand`, `MvelCommandResolver`,
 `MvelExpress` (implements core's `Express`), `MvelEvalKiller`, `MvelContext`,
 `MvelExpressFactory` (per-classloader cache).
