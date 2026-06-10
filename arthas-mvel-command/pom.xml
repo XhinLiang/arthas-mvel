@@ -31,7 +31,9 @@
         <dependency>
             <groupId>org.mvel</groupId>
             <artifactId>mvel2</artifactId>
-            <version>2.4.7.Final</version>
+            <!-- 2.5.x removes the reference to java.lang.Compiler (removed from the JDK),
+                 which made 2.4.x fail with NoClassDefFoundError on JDK 22+. -->
+            <version>2.5.2.Final</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
