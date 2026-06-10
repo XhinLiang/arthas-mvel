@@ -41,6 +41,13 @@
       <source>../math-game/target/math-game.jar</source>
       <destName>math-game.jar</destName>
     </file>
+    <!-- arthas-mvel fork: ship the mvel command as an external command, auto-loaded
+         from the default ${arthasHome}/commands directory at startup. -->
+    <file>
+      <source>../arthas-mvel-command/target/arthas-mvel-command-shade.jar</source>
+      <outputDirectory>commands</outputDirectory>
+      <destName>arthas-mvel-command.jar</destName>
+    </file>
 
     <file>
       <source>../bin/install-local.sh</source>

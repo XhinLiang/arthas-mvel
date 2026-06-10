@@ -1,6 +1,6 @@
-package com.taobao.arthas.core.command.express;
+package com.taobao.arthas.mvel;
 
-import static com.taobao.arthas.core.command.express.MvelContext.AUTO_LOAD_FUNCTIONS;
+import static com.taobao.arthas.mvel.MvelContext.AUTO_LOAD_FUNCTIONS;
 
 import java.util.HashMap;
 import java.util.Map;

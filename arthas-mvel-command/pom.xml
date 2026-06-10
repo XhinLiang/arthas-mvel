@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.taobao.arthas</groupId>
+        <artifactId>arthas-all</artifactId>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>arthas-mvel-command</artifactId>
+    <name>arthas-mvel-command</name>
+    <url>https://github.com/xhinliang/arthas-mvel</url>
+    <description>
+        arthas-mvel fork: the `mvel` command, packaged as an external Arthas command
+        (loaded via the CommandResolver SPI) so it no longer requires patching arthas-core.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.taobao.arthas</groupId>
+            <artifactId>arthas-core</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.middleware</groupId>
+            <artifactId>cli</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- the only third-party runtime dependency; shaded into the command jar -->
+        <dependency>
+            <groupId>org.mvel</groupId>
+            <artifactId>mvel2</artifactId>
+            <version>2.4.7.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Bundle mvel2 into a single drop-in command jar (arthas-mvel-command-shade.jar). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <finalName>arthas-mvel-command-shade</finalName>
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <artifactSet>
+                                <includes>
+                                    <include>org.mvel:mvel2</include>
+                                </includes>
+                            </artifactSet>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

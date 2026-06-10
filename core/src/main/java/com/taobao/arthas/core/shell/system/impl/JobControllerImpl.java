@@ -2,7 +2,6 @@ package com.taobao.arthas.core.shell.system.impl;
 
 import com.taobao.arthas.common.ArthasConstants;
 import com.taobao.arthas.core.GlobalOptions;
-import com.taobao.arthas.core.command.klass100.MvelCommand;
 import com.taobao.arthas.core.distribution.ResultDistributor;
 import com.taobao.arthas.core.server.ArthasBootstrap;
 import com.taobao.arthas.core.shell.cli.CliToken;
@@ -163,8 +162,13 @@ public class JobControllerImpl implements JobController {
                     if (command != null) {
                         return createCommandProcess(command, tokens, jobId, term, resultDistributor);
                     } else {
-                        // arthas-mvel fork: an unknown command is evaluated as an MVEL expression
-                        Command mvelCommand = MvelCommand.getInstance();
+                        // arthas-mvel fork: an unknown command is evaluated as an MVEL expression,
+                        // delegating to the externally-loaded `mvel` command (see arthas-mvel-command).
+                        // Resolve by name so core has no compile-time dependency on the plugin.
+                        Command mvelCommand = commandManager.getCommand("mvel");
+                        if (mvelCommand == null) {
+                            throw new IllegalArgumentException(token.value() + ": command not found");
+                        }
                         CliToken mvelToken = new CliTokenImpl(true, rawLine, rawLine);
                         return createMvelCommandProcess(mvelCommand, mvelToken, term, resultDistributor);
                     }
